@@ -53,7 +53,7 @@ pip install -r requirements.txt
 npm install --prefix client
 ```
 
-Tras crear `.venv`, en VS Code / Cursor elegí como intérprete **`.venv/Scripts/python.exe`** (Windows) o **`.venv/bin/python`** (Linux/macOS).
+Tras crear `.venv`, elegí como intérprete **`.venv/Scripts/python.exe`** (Windows) o **`.venv/bin/python`** (Linux/macOS).
 
 ### Uso básico (CLI)
 
