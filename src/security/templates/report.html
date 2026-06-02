@@ -1,0 +1,736 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Retest Ethical Hacking — {{ project_name }}</title>
+  <style>
+    :root {
+      --clr-critical: #c0392b;
+      --clr-critical-bg: #fdf3f2;
+      --clr-critical-border: #e8b4af;
+      --clr-high: #d35400;
+      --clr-high-bg: #fdf6f0;
+      --clr-high-border: #f0c4a0;
+      --clr-medium: #b7860b;
+      --clr-medium-bg: #fdfbf0;
+      --clr-medium-border: #e8d8a0;
+      --clr-low: #1e8449;
+      --clr-low-bg: #f0fdf5;
+      --clr-low-border: #a0ddb8;
+      --clr-info: #2980b9;
+      --clr-info-bg: #eaf4fb;
+      --font: "Segoe UI", system-ui, -apple-system, sans-serif;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      font-family: var(--font);
+      background: #f4f6f9;
+      color: #1a2533;
+      margin: 0;
+      padding: 0;
+    }
+
+    .page-wrap {
+      max-width: 1160px;
+      margin: 0 auto;
+      padding: 32px 24px 64px;
+    }
+
+    /* Header */
+    .report-header {
+      background: linear-gradient(135deg, #1a2a4a 0%, #0d5e8a 100%);
+      color: #fff;
+      border-radius: 12px;
+      padding: 32px 36px;
+      margin-bottom: 28px;
+    }
+
+    .report-header h1 {
+      margin: 0 0 8px;
+      font-size: 1.9rem;
+      letter-spacing: -0.02em;
+    }
+
+    .report-header .meta {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 20px;
+      margin-top: 18px;
+      font-size: 0.88rem;
+      opacity: 0.85;
+    }
+
+    .report-header .meta span strong {
+      display: block;
+      font-size: 1rem;
+      opacity: 1;
+      color: #fff;
+    }
+
+    /* Section cards */
+    .section-card {
+      background: #fff;
+      border: 1px solid #dde3ec;
+      border-radius: 10px;
+      padding: 24px 28px;
+      margin-bottom: 20px;
+      box-shadow: 0 2px 10px rgba(0,0,0,0.04);
+    }
+
+    .section-card h2 {
+      margin: 0 0 16px;
+      font-size: 1.1rem;
+      color: #1a2533;
+      border-bottom: 2px solid #e8edf3;
+      padding-bottom: 10px;
+    }
+
+    .section-card h3 {
+      font-size: 0.97rem;
+      color: #2c3e50;
+      margin: 16px 0 8px;
+    }
+
+    /* Summary bar chart */
+    .summary-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 12px;
+      margin-bottom: 20px;
+    }
+
+    .sev-card {
+      border-radius: 8px;
+      padding: 14px 16px;
+      border: 1px solid;
+    }
+
+    .sev-card .count {
+      display: block;
+      font-size: 2.4rem;
+      font-weight: 800;
+      line-height: 1;
+    }
+
+    .sev-card .label {
+      display: block;
+      font-size: 0.75rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      margin-top: 6px;
+      letter-spacing: 0.04em;
+    }
+
+    .sev-card.critical { background: var(--clr-critical-bg); border-color: var(--clr-critical-border); color: var(--clr-critical); }
+    .sev-card.high     { background: var(--clr-high-bg);     border-color: var(--clr-high-border);     color: var(--clr-high); }
+    .sev-card.medium   { background: var(--clr-medium-bg);   border-color: var(--clr-medium-border);   color: var(--clr-medium); }
+    .sev-card.low      { background: var(--clr-low-bg);      border-color: var(--clr-low-border);      color: var(--clr-low); }
+
+    /* Severity badges */
+    .badge {
+      display: inline-block;
+      border-radius: 999px;
+      padding: 3px 10px;
+      font-size: 0.72rem;
+      font-weight: 800;
+      text-transform: uppercase;
+      letter-spacing: 0.03em;
+      color: #fff;
+      white-space: nowrap;
+    }
+
+    .badge.critical { background: var(--clr-critical); }
+    .badge.high     { background: var(--clr-high); }
+    .badge.medium   { background: var(--clr-medium); }
+    .badge.low      { background: var(--clr-low); }
+    .badge.info     { background: var(--clr-info); }
+
+    /* Tables */
+    .table-wrap {
+      width: 100%;
+      overflow-x: auto;
+      border-radius: 8px;
+      border: 1px solid #dde3ec;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.88rem;
+    }
+
+    thead th {
+      background: #f3f6fa;
+      color: #546474;
+      font-size: 0.75rem;
+      font-weight: 800;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      padding: 10px 14px;
+      text-align: left;
+      border-bottom: 2px solid #dde3ec;
+    }
+
+    tbody tr { border-bottom: 1px solid #edf1f6; }
+    tbody tr:last-child { border-bottom: 0; }
+    tbody tr:hover { background: #f7f9fc; }
+
+    td {
+      padding: 11px 14px;
+      vertical-align: top;
+      color: #2c3e50;
+    }
+
+    /* CWE link */
+    .cwe-link {
+      font-size: 0.78rem;
+      color: #2980b9;
+      text-decoration: none;
+      border: 1px solid #b8d9ee;
+      border-radius: 4px;
+      padding: 2px 6px;
+      background: #eaf4fb;
+      white-space: nowrap;
+    }
+
+    .cwe-link:hover { background: #d6ecf8; }
+
+    /* Vulnerability detail cards */
+    .vuln-card {
+      border: 1px solid #dde3ec;
+      border-radius: 8px;
+      margin-bottom: 14px;
+      overflow: hidden;
+    }
+
+    .vuln-card-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 12px 16px;
+      border-bottom: 1px solid #edf1f6;
+    }
+
+    .vuln-card-head h4 {
+      margin: 0;
+      font-size: 0.95rem;
+      color: #1a2533;
+    }
+
+    .vuln-card-body {
+      padding: 16px;
+    }
+
+    .vuln-meta-grid {
+      display: grid;
+      grid-template-columns: 160px 1fr;
+      gap: 6px 12px;
+      font-size: 0.85rem;
+      margin-bottom: 14px;
+    }
+
+    .vuln-meta-grid .key {
+      color: #677889;
+      font-weight: 700;
+    }
+
+    .vuln-meta-grid .val {
+      color: #2c3e50;
+      word-break: break-word;
+    }
+
+    .vuln-section-label {
+      display: block;
+      font-size: 0.8rem;
+      font-weight: 800;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      color: #677889;
+      margin: 14px 0 6px;
+    }
+
+    pre.code-block {
+      background: #1a2533;
+      color: #e2e8f0;
+      padding: 14px 16px;
+      border-radius: 8px;
+      font-family: "Cascadia Mono", "SFMono-Regular", Consolas, monospace;
+      font-size: 0.82rem;
+      white-space: pre-wrap;
+      word-break: break-all;
+      margin: 0;
+      max-height: 400px;
+      overflow: auto;
+    }
+
+    .fp-note {
+      background: #fffbeb;
+      border: 1px solid #f6d860;
+      border-radius: 6px;
+      padding: 8px 12px;
+      font-size: 0.82rem;
+      color: #7d6608;
+      margin-top: 10px;
+    }
+
+    .fp-note strong { color: #5d4a00; }
+
+    /* Diff section */
+    .diff-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr 1fr;
+      gap: 12px;
+    }
+
+    .diff-item {
+      border-radius: 8px;
+      padding: 12px 14px;
+      border: 1px solid;
+      font-size: 0.86rem;
+    }
+
+    .diff-item.delta    { background: #f0f4ff; border-color: #b8c8f0; color: #2b4fa8; }
+    .diff-item.new-f    { background: var(--clr-critical-bg); border-color: var(--clr-critical-border); color: var(--clr-critical); }
+    .diff-item.resolved { background: var(--clr-low-bg); border-color: var(--clr-low-border); color: var(--clr-low); }
+
+    .diff-item .di-label { font-size: 0.72rem; font-weight: 800; text-transform: uppercase; letter-spacing: 0.04em; }
+    .diff-item .di-value { font-size: 1.5rem; font-weight: 800; display: block; margin: 4px 0 8px; }
+
+    ul.diff-list {
+      margin: 0;
+      padding-left: 16px;
+      font-size: 0.82rem;
+    }
+
+    /* Steps OL */
+    ol.steps { padding-left: 18px; margin: 4px 0; font-size: 0.86rem; }
+    ol.steps li { margin-bottom: 4px; color: #344a5e; }
+
+    /* Refs UL */
+    ul.refs { padding-left: 16px; margin: 4px 0; font-size: 0.84rem; }
+    ul.refs li a { color: #2980b9; }
+
+    /* Footer */
+    .report-footer {
+      text-align: center;
+      color: #8394a6;
+      font-size: 0.8rem;
+      margin-top: 36px;
+    }
+
+    /* Responsive */
+    @media (max-width: 760px) {
+      .summary-grid { grid-template-columns: 1fr 1fr; }
+      .diff-grid { grid-template-columns: 1fr; }
+      .vuln-meta-grid { grid-template-columns: 1fr; }
+      .page-wrap { padding: 16px 12px 40px; }
+      .report-header { padding: 22px 18px; }
+    }
+  </style>
+</head>
+<body>
+<div class="page-wrap">
+
+  <!-- ── HEADER ─────────────────────────────────── -->
+  <div class="report-header">
+    <h1>Retest Ethical Hacking</h1>
+    <div class="meta">
+      <span><strong>{{ project_name }}</strong>Proyecto</span>
+      <span><strong>{{ scan_date }}</strong>Fecha</span>
+      <span><strong>v{{ version }}</strong>Versión</span>
+      {% if target_url %}
+      <span><strong>{{ target_url }}</strong>Target API</span>
+      {% endif %}
+    </div>
+  </div>
+
+  {% if scan_scope and (scan_scope.extensions or scan_scope.languages) %}
+  <div class="section-card">
+    <h2>Alcance del análisis estático</h2>
+    <p><strong>Archivos analizados:</strong> {{ scan_scope.files_scanned or 0 }}</p>
+    {% if scan_scope.languages %}
+    <p><strong>Lenguajes seleccionados:</strong> {{ scan_scope.languages | join(", ") }}</p>
+    {% endif %}
+    {% if scan_scope.extensions %}
+    <p><strong>Extensiones incluidas:</strong> <code style="font-size:0.82rem">{{ scan_scope.extensions | join(" ") }}</code></p>
+    {% endif %}
+    {% if scan_scope.suppression_rules %}
+    <p style="color:#5d4a00;font-size:0.88rem">Reglas de supresión cargadas desde <code>.api-security-ignore.yaml</code>: <strong>{{ scan_scope.suppression_rules }}</strong></p>
+    {% endif %}
+  </div>
+  {% endif %}
+
+  {% if executive_summary and executive_summary.headline %}
+  <div class="section-card">
+    <h2>Priorización (ejecutivo)</h2>
+    <p style="font-size:1.05rem"><strong>{{ executive_summary.headline | e }}</strong></p>
+    {% if executive_summary.priority_titles %}
+    <h3>Top hallazgos</h3>
+    <ol class="steps">
+      {% for t in executive_summary.priority_titles %}<li>{{ t | e }}</li>{% endfor %}
+    </ol>
+    {% endif %}
+    {% if executive_summary.recommended_actions %}
+    <h3>Acciones recomendadas</h3>
+    <ul class="refs">
+      {% for a in executive_summary.recommended_actions %}<li>{{ a | e }}</li>{% endfor %}
+    </ul>
+    {% endif %}
+    {% if executive_summary.openapi_specs_found %}
+    <p style="margin-top:12px;font-size:0.88rem">Specs OpenAPI/Swagger detectadas en el repo: <strong>{{ executive_summary.openapi_specs_found }}</strong> (ver anexo técnico).</p>
+    {% endif %}
+  </div>
+  {% endif %}
+
+  {% if external_checks_summary %}
+  <div class="section-card">
+    <h2>Herramientas externas — estado</h2>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Herramienta</th><th>Estado</th><th>Motivo / detalle</th></tr></thead>
+        <tbody>
+          {% for row in external_checks_summary %}
+          <tr>
+            <td><code>{{ row.id | e }}</code></td>
+            <td><span class="badge {% if row.status == 'completed' %}low{% elif row.status == 'skipped' %}medium{% else %}high{% endif %}">{{ row.status | e }}</span></td>
+            <td style="font-size:0.82rem">{{ row.reason | e }}{% if row.exit_code is not none %} <small>(exit {{ row.exit_code }})</small>{% endif %}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    <p style="color:#677889;font-size:0.82rem;margin-top:10px">Instala Semgrep, Trivy, Grype, Nuclei o Schemathesis en el PATH del servidor para ejecutar checks marcados en el escaneo.</p>
+  </div>
+  {% endif %}
+
+  <!-- ── 1. INTRODUCCIÓN ────────────────────────── -->
+  <div class="section-card">
+    <h2>1. Introducción</h2>
+    <p>Retest de seguridad con análisis estático de código fuente, pruebas dinámicas contra la API, validaciones asistidas e integración de resultados de herramientas externas (ZAP, Burp, Semgrep, Trivy).</p>
+    <h2 style="margin-top:18px">2. Objetivo</h2>
+    <p>Identificar vulnerabilidades explotables y medir avance de remediación respecto al baseline anterior.</p>
+    <h2 style="margin-top:18px">3. Alcance</h2>
+    <p><strong>Target API:</strong> {{ target_url or "N/A" }}</p>
+    {% if technical_annex.openapi_specs_discovered %}
+    <h3 style="margin-top:14px">3.1 Contratos OpenAPI / Swagger en repositorio</h3>
+    <ul class="refs">{% for p in technical_annex.openapi_specs_discovered %}<li><code>{{ p | e }}</code></li>{% endfor %}</ul>
+    {% endif %}
+  </div>
+
+  <!-- ── 4. INFORME EJECUTIVO ───────────────────── -->
+  <div class="section-card">
+    <h2>4. Informe Ejecutivo</h2>
+
+    <div class="summary-grid">
+      <div class="sev-card critical">
+        <span class="count">{{ summary.CRITICAL }}</span>
+        <span class="label">Crítico</span>
+      </div>
+      <div class="sev-card high">
+        <span class="count">{{ summary.HIGH }}</span>
+        <span class="label">Alto</span>
+      </div>
+      <div class="sev-card medium">
+        <span class="count">{{ summary.MEDIUM }}</span>
+        <span class="label">Medio</span>
+      </div>
+      <div class="sev-card low">
+        <span class="count">{{ summary.LOW }}</span>
+        <span class="label">Bajo</span>
+      </div>
+    </div>
+
+    <p>Total de hallazgos: <strong>{{ total_vulns }}</strong></p>
+
+    <h3>4.1 Retest Diff (Antes vs Después)</h3>
+    {% if retest_diff and retest_diff.has_previous %}
+    <div class="diff-grid">
+      <div class="diff-item delta">
+        <div class="di-label">Delta total</div>
+        <span class="di-value">{% if retest_diff.delta_total > 0 %}+{% endif %}{{ retest_diff.delta_total }}</span>
+      </div>
+      <div class="diff-item new-f">
+        <div class="di-label">Hallazgos nuevos</div>
+        <span class="di-value">{{ retest_diff.new_titles | length }}</span>
+        {% if retest_diff.new_titles %}
+        <ul class="diff-list">{% for t in retest_diff.new_titles %}<li>{{ t }}</li>{% endfor %}</ul>
+        {% else %}<p style="margin:4px 0;font-size:0.82rem">Ninguno</p>{% endif %}
+      </div>
+      <div class="diff-item resolved">
+        <div class="di-label">Hallazgos resueltos</div>
+        <span class="di-value">{{ retest_diff.resolved_titles | length }}</span>
+        {% if retest_diff.resolved_titles %}
+        <ul class="diff-list">{% for t in retest_diff.resolved_titles %}<li>{{ t }}</li>{% endfor %}</ul>
+        {% else %}<p style="margin:4px 0;font-size:0.82rem">Ninguno</p>{% endif %}
+      </div>
+    </div>
+    {% else %}
+    <p>Sin baseline previo en la base de datos para comparar.</p>
+    {% endif %}
+
+    <h3>4.2 Cuadro Resumen</h3>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>#</th><th>Vulnerabilidad</th><th>Riesgo</th>
+            <th>CVSS</th><th>Estado</th><th>Endpoint</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for v in vulnerabilities %}
+          <tr>
+            <td>{{ loop.index }}</td>
+            <td><a href="#vuln-{{ loop.index }}">{{ v.title | e }}</a></td>
+            <td><span class="badge {{ v.severity | lower }}">{{ v.severity }}</span></td>
+            <td>{{ v.cvss }}</td>
+            <td>{{ v.status | e }}</td>
+            <td style="font-size:0.8rem;word-break:break-all">{{ v.endpoint or "N/A" | e }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- ── 5. INFORME TÉCNICO ─────────────────────── -->
+  <div class="section-card">
+    <h2>5. Informe Técnico</h2>
+    <h3>5.1 Manual Checks Asistidos</h3>
+    {% if manual_assisted %}
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Check</th><th>Estado</th><th>Endpoint</th><th>Severidad</th></tr></thead>
+        <tbody>
+          {% for x in manual_assisted %}
+          <tr>
+            <td>{{ x.check_id | e }}</td>
+            <td>{{ x.status | e }}</td>
+            <td>{{ x.endpoint | e }}</td>
+            <td><span class="badge {{ (x.severity or 'low') | lower }}">{{ x.severity or "—" }}</span></td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+    <p style="color:#8394a6">Sin evidencias manuales cargadas.</p>
+    {% endif %}
+  </div>
+
+  {% macro endpoint_vuln_card(v, idx) %}
+  <div class="vuln-card" id="ep-vuln-{{ idx }}">
+    <div class="vuln-card-head">
+      <h4>{{ v.title | e }}</h4>
+      <span class="badge {{ v.severity | lower }}">{{ v.severity }}</span>
+    </div>
+    <div class="vuln-card-body">
+      <div class="vuln-meta-grid">
+        <div class="key">Estado</div><div class="val">{{ v.status | e }}</div>
+        <div class="key">Activo / Endpoint</div><div class="val">{{ v.endpoint or "N/A" | e }}</div>
+        <div class="key">CVSS</div><div class="val">{{ v.cvss }}</div>
+        <div class="key">Categoría</div><div class="val">{{ v.category | e }}</div>
+        <div class="key">CWE</div>
+        <div class="val">
+          {% if v.cwe_id %}
+          <a class="cwe-link" href="https://cwe.mitre.org/data/definitions/{{ v.cwe_id | replace('CWE-', '') }}.html" target="_blank" rel="noopener">{{ v.cwe_id }}</a>
+          {% else %}N/A{% endif %}
+        </div>
+      </div>
+      <span class="vuln-section-label">Descripción</span>
+      <p style="margin:0;font-size:0.88rem">{{ v.description | e }}</p>
+      <span class="vuln-section-label">Impacto</span>
+      <p style="margin:0;font-size:0.88rem">{{ v.impact | e }}</p>
+      <span class="vuln-section-label">Explotación / Evidencia</span>
+      <p style="margin:0 0 8px;font-size:0.88rem">{{ v.exploit_text | e }}</p>
+      {% if v.poc %}<pre class="code-block">{{ v.poc | e }}</pre>{% endif %}
+      {% if v.false_positive_note %}
+      <div class="fp-note"><strong>Nota de revisión:</strong><br>{{ v.false_positive_note | e }}</div>
+      {% endif %}
+      <span class="vuln-section-label">Pasos para reproducir</span>
+      <ol class="steps">{% for s in v.steps_to_reproduce %}<li>{{ s | e }}</li>{% endfor %}</ol>
+      <span class="vuln-section-label">Mitigación / Solución</span>
+      <p style="margin:0;font-size:0.88rem">{{ v.recommendation | e }}</p>
+    </div>
+  </div>
+  {% endmacro %}
+
+  <!-- ── 5.2 ALCANCE POR ENDPOINT ───────────────── -->
+  {% if api_endpoint_report %}
+  <div class="section-card">
+    <h2>5.2 Alcance por endpoint (análisis de la colección)</h2>
+    {% if endpoint_report_meta and endpoint_report_meta.report_lists_full_collection %}
+    <p style="color:#4b5968;font-size:0.9rem;margin-top:0">
+      La colección importada define <strong>{{ endpoint_report_meta.inventory_total }}</strong> rutas en total.
+      Esta tabla y las pruebas dinámicas aplican solo a las <strong>{{ endpoint_report_meta.dynamic_scope_total }}</strong>
+      seleccionadas en la interfaz.
+    </p>
+    {% endif %}
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>#</th><th>Método</th><th>Path</th><th>URL</th><th>Sonda</th><th>Hallazgos</th></tr></thead>
+        <tbody>
+          {% for e in api_endpoint_report %}
+          <tr>
+            <td>{{ loop.index }}</td>
+            <td><span class="badge info">{{ e.method | e }}</span></td>
+            <td style="font-family:monospace;font-size:0.82rem">{{ e.path | e }}</td>
+            <td style="font-size:0.78rem;word-break:break-all">{{ e.url | e }}</td>
+            <td style="font-size:0.78rem">
+              {% if e.probe %}
+              <span class="badge {{ 'low' if e.probe.probe_status == 'ok' else 'medium' }}">{{ e.probe.get_status or '—' }}</span>
+              <span style="color:#64748b">{{ e.probe.message | e }}</span>
+              {% else %}
+              <span style="color:#8394a6">—</span>
+              {% endif %}
+            </td>
+            <td><strong>{{ e.scoped_finding_count if e.scoped_finding_count is defined else (e.finding_count or 0) }}</strong></td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- ── 5.2.1 DETALLE POR ENDPOINT (mismo formato que sección 6) ── -->
+  <div class="section-card">
+    <h2>5.2.1 Detalle por endpoint seleccionado</h2>
+    <p style="color:#4b5968;font-size:0.9rem;margin-top:0">
+      Un bloque por cada ruta del alcance. Los hallazgos listados están vinculados a esa URL, path o archivos fuente del endpoint.
+    </p>
+    {% for e in api_endpoint_report %}
+    <div class="section-card" style="margin-top:16px;border:1px solid #e2e8f0">
+      <h3 style="margin:0 0 8px;font-size:1.05rem">
+        <span class="badge info">{{ e.method | e }}</span>
+        <code style="margin-left:8px">{{ e.path | e }}</code>
+      </h3>
+      <p style="margin:0 0 12px;font-size:0.82rem;word-break:break-all;color:#4b5968">{{ e.url | e }}</p>
+      {% if e.probe %}
+      <div class="analysis-box" style="margin-bottom:12px">
+        <span>Análisis HTTP (sonda)</span>
+        <p style="margin:6px 0 0;font-size:0.88rem"><strong>Estado:</strong> {{ e.probe.message | e }}</p>
+        {% if e.probe.probe_status == 'budget_exhausted' %}
+        <p style="margin:4px 0 0;font-size:0.82rem;color:#b45309">El tope de peticiones por endpoint limitó la sonda; los checks del scan pueden haber corrido antes con otro presupuesto.</p>
+        {% endif %}
+      </div>
+      {% endif %}
+      {% if e.files and e.files|length > 0 %}
+      <p style="margin:0 0 12px;font-size:0.8rem;color:#64748b">
+        Fuente en repo:
+        {% for sf in e.files[:5] %}{{ sf.file }}{% if sf.line %}:{{ sf.line }}{% endif %}{% if not loop.last %}, {% endif %}{% endfor %}
+        {% if e.files|length > 5 %}…{% endif %}
+      </p>
+      {% endif %}
+      {% if e.detail_vulns and e.detail_vulns|length > 0 %}
+        {% for v in e.detail_vulns %}
+          {{ endpoint_vuln_card(v, loop.index) }}
+        {% endfor %}
+      {% else %}
+        <p style="color:#8394a6;padding:12px 0;margin:0">
+          Sin hallazgos vinculados a este endpoint en el alcance del scan.
+          Revisa la sección 6 para hallazgos globales del repositorio o del API base.
+        </p>
+      {% endif %}
+    </div>
+    {% endfor %}
+  </div>
+  {% endif %}
+
+  <!-- ── 6. VULNERABILIDADES ────────────────────── -->
+  <div class="section-card">
+    <h2>6. Vulnerabilidades — Detalle Técnico</h2>
+    {% if vulnerabilities %}
+      {% for v in vulnerabilities %}
+      <div class="vuln-card" id="vuln-{{ loop.index }}">
+        <div class="vuln-card-head">
+          <h4>6.{{ loop.index }} {{ v.title | e }}</h4>
+          <span class="badge {{ v.severity | lower }}">{{ v.severity }}</span>
+        </div>
+        <div class="vuln-card-body">
+          <div class="vuln-meta-grid">
+            <div class="key">Estado</div>        <div class="val">{{ v.status | e }}</div>
+            <div class="key">Activo / Endpoint</div><div class="val">{{ v.endpoint or "N/A" | e }}</div>
+            <div class="key">CVSS</div>           <div class="val">{{ v.cvss }} {% if v.cvss_vector %}<small>({{ v.cvss_vector | e }})</small>{% endif %}</div>
+            <div class="key">Categoría</div>      <div class="val">{{ v.category | e }}</div>
+            <div class="key">CWE</div>
+            <div class="val">
+              {% if v.cwe_id %}
+              <a class="cwe-link" href="https://cwe.mitre.org/data/definitions/{{ v.cwe_id | replace('CWE-', '') }}.html" target="_blank" rel="noopener">{{ v.cwe_id }}</a>
+              {% else %}N/A{% endif %}
+            </div>
+          </div>
+
+          <span class="vuln-section-label">Descripción</span>
+          <p style="margin:0;font-size:0.88rem">{{ v.description | e }}</p>
+
+          <span class="vuln-section-label">Impacto</span>
+          <p style="margin:0;font-size:0.88rem">{{ v.impact | e }}</p>
+
+          <span class="vuln-section-label">Explotación / Evidencia</span>
+          <p style="margin:0 0 8px;font-size:0.88rem">{{ v.exploit_text | e }}</p>
+          {% if v.poc %}
+          <pre class="code-block">{{ v.poc | e }}</pre>
+          {% endif %}
+
+          {% if v.false_positive_note %}
+          <div class="fp-note">
+            <strong>⚠ Nota de revisión (posible falso positivo):</strong><br>{{ v.false_positive_note | e }}
+          </div>
+          {% endif %}
+
+          <span class="vuln-section-label">Pasos para reproducir</span>
+          <ol class="steps">
+            {% for s in v.steps_to_reproduce %}<li>{{ s | e }}</li>{% endfor %}
+          </ol>
+
+          <span class="vuln-section-label">Mitigación / Solución</span>
+          <p style="margin:0;font-size:0.88rem">{{ v.recommendation | e }}</p>
+
+          <span class="vuln-section-label">Referencias</span>
+          <ul class="refs">
+            {% for r in v.references %}<li><a href="{{ r }}" target="_blank" rel="noopener">{{ r }}</a></li>{% endfor %}
+          </ul>
+        </div>
+      </div>
+      {% endfor %}
+    {% else %}
+    <p style="color:#8394a6;text-align:center;padding:24px">No se encontraron vulnerabilidades.</p>
+    {% endif %}
+  </div>
+
+  <!-- ── 7. CONTROL DE VERSIONES ────────────────── -->
+  <div class="section-card">
+    <h2>7. Control de Versiones</h2>
+    <p>Versión {{ version }} — generado automáticamente el {{ scan_date }}.</p>
+  </div>
+
+  <!-- ── 8. ANEXOS TÉCNICOS ─────────────────────── -->
+  <div class="section-card">
+    <h2>8. Anexos Técnicos</h2>
+    <h3>8.1 Comandos y Scripts Utilizados</h3>
+    {% if technical_annex.commands %}
+    <ul>{% for c in technical_annex.commands %}<li><code>{{ c | e }}</code></li>{% endfor %}</ul>
+    {% else %}<p style="color:#8394a6">N/A</p>{% endif %}
+
+    <h3>8.2 Referencias OWASP / CWE</h3>
+    <ul class="refs">
+      {% for r in technical_annex.get("references", ["https://owasp.org/API-Security/", "https://cwe.mitre.org/"]) %}
+      <li><a href="{{ r }}" target="_blank" rel="noopener">{{ r }}</a></li>
+      {% endfor %}
+    </ul>
+
+    <h3 style="margin-top:18px">8.3 Supresiones de código (opcional)</h3>
+    <p style="font-size:0.88rem;color:#546474">Puedes crear <code>.api-security-ignore.yaml</code> en la raíz del proyecto con entradas <code>suppress:</code> usando <code>pattern_id</code>, <code>path_contains</code>, <code>path_glob</code> o <code>path_suffix</code> para reducir ruido en rutas de test o fixtures.</p>
+  </div>
+
+  <div class="report-footer">
+    Generado por API Security Scanner v{{ version }} · {{ scan_date }}
+  </div>
+
+</div>
+</body>
+</html>

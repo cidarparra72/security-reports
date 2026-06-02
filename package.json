@@ -1,0 +1,31 @@
+{
+  "name": "alipay-security-scanner",
+  "version": "1.0.0",
+  "description": "Security vulnerability scanner for Alipay Mini Programs",
+  "main": "src/security/api_scanner.py",
+  "scripts": {
+    "setup": "powershell -ExecutionPolicy Bypass -File dev-setup.ps1",
+    "setup:external": "powershell -ExecutionPolicy Bypass -File install-external-tools.ps1",
+    "dev:backend": "powershell -ExecutionPolicy Bypass -File run-backend.ps1",
+    "dev:client": "powershell -ExecutionPolicy Bypass -File run-frontend.ps1",
+    "scan": "py -3.13 -m src.security.api_scanner",
+    "report": "py -3.13 -m src.security.report_generator",
+    "full-scan": "npm install && py -3.13 -m src.security.api_scanner --output scan-results.json && py -3.13 -m src.security.report_generator --input scan-results.json --output security-report.html",
+    "scan:zap-baseline": "py -3.13 -m src.security.zap_baseline_runner --path . --minutes 5"
+  },
+  "keywords": [
+    "security",
+    "vulnerability",
+    "alipay",
+    "mini-program",
+    "devops"
+  ],
+  "author": "Security Team",
+  "license": "MIT",
+  "dependencies": {},
+  "devDependencies": {},
+  "engines": {
+    "node": ">=18.0.0",
+    "python": ">=3.9 <3.14"
+  }
+}

@@ -1,0 +1,21 @@
+# Python 3.9–3.13 recomendado. Evita 3.14 en Windows si `python` apunta a una instalación incompleta.
+# Instalación: py -3.13 -m venv .venv  →  .\.venv\Scripts\pip install -r requirements.txt
+# O ejecuta:  powershell -File dev-setup.ps1
+# Security scanning tools
+safety>=2.0
+bandit>=1.7.0
+
+# Report generation
+jinja2>=3.0.0
+reportlab>=4.0.0
+
+# Optional: Enhanced scanning
+pyyaml>=6.0
+requests>=2.28.0
+fpdf2>=2.7.0
+
+# HTTP API
+fastapi>=0.100.0
+uvicorn[standard]>=0.22.0
+python-multipart>=0.0.6
+httpx>=0.27.0

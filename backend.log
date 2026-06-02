@@ -1,0 +1,154 @@
+INFO:     127.0.0.1:55906 - "GET /checks/catalog HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55907 - "GET /checks/catalog HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52577 - "GET /checks/catalog HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56130 - "GET /checks/catalog HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56131 - "GET /checks/catalog HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64985 - "POST /infer-api HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52003 - "POST /infer-endpoints HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64224 - "POST /infer-endpoints HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52846 - "POST /infer-api HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51960 - "POST /infer-endpoints HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53629 - "POST /infer-api HTTP/1.1" 200 OK
+INFO:     127.0.0.1:63914 - "POST /infer-api HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62755 - "POST /infer-endpoints HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50150 - "POST /infer-endpoints HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57017 - "POST /infer-endpoints HTTP/1.1" 200 OK
+INFO:     127.0.0.1:61436 - "POST /scan HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49434 - "GET /scan/32 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56416 - "GET /scan/32 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51858 - "GET /scan/32 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56112 - "GET /scan/32 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55432 - "GET /scan/32 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64337 - "GET /scan/32 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52241 - "GET /scan/32 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55138 - "GET /scan/32 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:63891 - "GET /scan/32 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57955 - "GET /scan/32 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:60165 - "GET /scan/32 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57736 - "GET /scan/32 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64951 - "GET /scan/32 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57865 - "GET /scan/32 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58388 - "GET /scan/32 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:63560 - "GET /scan/32 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54935 - "GET /scan/32 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51524 - "GET /scan/32 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62968 - "GET /scan/32 HTTP/1.1" 200 OK
+API URL selected: https://claro-co.saludinclusiva.ai/api
+Running ZAP baseline Docker image: owasp/zap2docker-stable
+RUN docker run --rm -t -v E:\miniprograms\DT.Claro.Miniprogram.Sannare:/zap/wrk:rw owasp/zap2docker-stable zap-baseline.py -t https://claro-co.saludinclusiva.ai/api -m 5 -r scan-32-zap-baseline.html -J scan-32-zap-baseline.json -I
+ERROR: Docker is not installed or not available in PATH.
+INFO:     127.0.0.1:51011 - "GET /scan/32 HTTP/1.1" 200 OK
+Reporte generado: E:\revision\security-reports\reports\report_32.html
+PDF generado: E:\revision\security-reports\reports\report_32.pdf
+INFO:     127.0.0.1:53626 - "POST /report HTTP/1.1" 200 OK
+INFO:     127.0.0.1:65204 - "GET /reports/report_32.html HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51546 - "GET /reports/report_32.html HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58582 - "GET /checks/catalog HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58583 - "GET /checks/catalog HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58697 - "POST /infer-api HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53157 - "POST /infer-endpoints HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54138 - "POST /scan HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49587 - "GET /scan/33 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52272 - "GET /scan/33 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62118 - "GET /scan/33 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49232 - "GET /scan/33 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49561 - "GET /scan/33 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56496 - "GET /scan/33 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49910 - "GET /scan/33 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:61988 - "GET /scan/33 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:63296 - "GET /scan/33 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:61299 - "GET /scan/33 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51516 - "GET /scan/33 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:65135 - "GET /scan/33 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54481 - "GET /scan/33 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53473 - "GET /scan/33 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62842 - "GET /scan/33 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51877 - "GET /scan/33 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62371 - "GET /scan/33 HTTP/1.1" 200 OK
+API URL selected: https://claro-co.saludinclusiva.ai/api
+Running ZAP baseline Docker image: owasp/zap2docker-stable
+RUN docker run --rm -t -v E:\miniprograms\DT.Claro.Miniprogram.Sannare:/zap/wrk:rw owasp/zap2docker-stable zap-baseline.py -t https://claro-co.saludinclusiva.ai/api -m 5 -r scan-33-zap-baseline.html -J scan-33-zap-baseline.json -I
+ERROR: Docker is not installed or not available in PATH.
+INFO:     127.0.0.1:64134 - "GET /scan/33 HTTP/1.1" 200 OK
+Reporte generado: E:\revision\security-reports\reports\report_33.html
+PDF generado: E:\revision\security-reports\reports\report_33.pdf
+INFO:     127.0.0.1:51093 - "POST /report HTTP/1.1" 200 OK
+INFO:     127.0.0.1:65500 - "GET /reports/report_33.html HTTP/1.1" 200 OK
+INFO:     127.0.0.1:63819 - "GET /checks/catalog HTTP/1.1" 200 OK
+INFO:     127.0.0.1:63820 - "GET /checks/catalog HTTP/1.1" 200 OK
+INFO:     127.0.0.1:65140 - "POST /infer-api HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58021 - "POST /infer-endpoints HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50604 - "POST /infer-endpoints HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55487 - "POST /scan HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54762 - "GET /scan/34 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64214 - "GET /scan/34 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59253 - "GET /scan/34 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59976 - "GET /scan/34 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59016 - "GET /scan/34 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58232 - "GET /scan/34 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50685 - "GET /scan/34 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58902 - "GET /scan/34 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59603 - "GET /scan/34 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53667 - "GET /scan/34 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:61051 - "GET /scan/34 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58917 - "GET /scan/34 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53628 - "GET /scan/34 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53972 - "GET /scan/34 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62957 - "GET /scan/34 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56050 - "GET /scan/34 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53152 - "GET /scan/34 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56754 - "GET /scan/34 HTTP/1.1" 200 OK
+API URL selected: https://claro-co.saludinclusiva.ai/api
+Running ZAP baseline Docker image: owasp/zap2docker-stable
+RUN docker run --rm -t -v E:\miniprograms\DT.Claro.Miniprogram.Sannare:/zap/wrk:rw owasp/zap2docker-stable zap-baseline.py -t https://claro-co.saludinclusiva.ai/api -m 5 -r scan-34-zap-baseline.html -J scan-34-zap-baseline.json -I
+ERROR: Docker is not installed or not available in PATH.
+INFO:     127.0.0.1:56483 - "GET /scan/34 HTTP/1.1" 200 OK
+Reporte generado: E:\revision\security-reports\reports\report_34.html
+PDF generado: E:\revision\security-reports\reports\report_34.pdf
+INFO:     127.0.0.1:62464 - "POST /report HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55956 - "GET /reports/report_34.html HTTP/1.1" 200 OK
+INFO:     127.0.0.1:65187 - "GET /checks/catalog HTTP/1.1" 200 OK
+INFO:     127.0.0.1:65188 - "GET /checks/catalog HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59442 - "GET /checks/catalog HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59443 - "GET /checks/catalog HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51806 - "GET /checks/catalog HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51807 - "GET /checks/catalog HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64783 - "GET /checks/catalog HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64784 - "GET /checks/catalog HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64884 - "POST /infer-api HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53995 - "POST /infer-endpoints HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51326 - "POST /infer-endpoints HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52132 - "POST /infer-endpoints HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58101 - "POST /infer-endpoints HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49542 - "POST /infer-endpoints HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52849 - "POST /scan HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53235 - "GET /scan/35 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52264 - "GET /scan/35 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53741 - "GET /scan/35 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56919 - "GET /scan/35 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52770 - "GET /scan/35 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49593 - "GET /scan/35 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54531 - "GET /scan/35 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:63305 - "GET /scan/35 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62108 - "GET /scan/35 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:61282 - "GET /scan/35 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58295 - "GET /scan/35 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:61582 - "GET /scan/35 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59474 - "GET /scan/35 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62035 - "GET /scan/35 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56283 - "GET /scan/35 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57813 - "GET /scan/35 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55466 - "GET /scan/35 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54890 - "GET /scan/35 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64391 - "GET /scan/35 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56462 - "GET /scan/35 HTTP/1.1" 200 OK
+API URL selected: https://claro-co.saludinclusiva.ai/api
+Running ZAP baseline Docker image: owasp/zap2docker-stable
+RUN docker run --rm -t -v E:\miniprograms\DT.Claro.Miniprogram.Sannare:/zap/wrk:rw owasp/zap2docker-stable zap-baseline.py -t https://claro-co.saludinclusiva.ai/api -m 5 -r scan-35-zap-baseline.html -J scan-35-zap-baseline.json -I
+ERROR: Docker is not installed or not available in PATH.
+INFO:     127.0.0.1:60617 - "GET /scan/35 HTTP/1.1" 200 OK
+Reporte generado: E:\revision\security-reports\reports\report_35.html
+PDF generado: E:\revision\security-reports\reports\report_35.pdf
+INFO:     127.0.0.1:54096 - "POST /report HTTP/1.1" 200 OK
+INFO:     127.0.0.1:60108 - "GET /reports/report_35.html HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64141 - "GET /checks/catalog HTTP/1.1" 200 OK

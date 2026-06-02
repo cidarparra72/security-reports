@@ -1,0 +1,4 @@
+# Config mínima para pytest (pythonpath = src).
+[tool.pytest.ini_options]
+testpaths = ["."]
+pythonpath = ["src"]

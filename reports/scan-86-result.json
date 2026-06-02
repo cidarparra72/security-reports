@@ -1,0 +1,48 @@
+{
+  "project_path": "C:\\Users\\Aragon\\AppData\\Local\\Temp\\pytest-of-Aragon\\pytest-7\\test_fastapi_scan_valid_path0",
+  "scan_date": "2026-05-20T13:00:49.406557+00:00",
+  "vulnerabilities": [],
+  "summary": {
+    "CRITICAL": 0,
+    "HIGH": 0,
+    "MEDIUM": 0,
+    "LOW": 0
+  },
+  "total_vulnerabilities": 0,
+  "dynamic_api_url": "",
+  "dynamic_api_inferred": false,
+  "openapi_specs": [],
+  "scan_scope": {
+    "files_scanned": 1,
+    "extensions": [
+      ".js"
+    ]
+  },
+  "external_checks_summary": [],
+  "selected_endpoints": [],
+  "selected_endpoint_details": [],
+  "api_endpoint_report": [],
+  "endpoint_report_meta": {
+    "inventory_total": 0,
+    "dynamic_scope_total": 0,
+    "report_lists_full_collection": false
+  },
+  "executive_summary": {
+    "total_findings": 0,
+    "summary_counts": {
+      "CRITICAL": 0,
+      "HIGH": 0,
+      "MEDIUM": 0,
+      "LOW": 0
+    },
+    "headline": "0 hallazgos",
+    "priority_titles": [],
+    "dynamic_api_url": null,
+    "dynamic_api_inferred": false,
+    "api_url_requested": null,
+    "openapi_specs_found": 0,
+    "recommended_actions": [
+      "Indicar URL base del API o usar inferencia desde código para habilitar pruebas dinámicas HTTP/TLS."
+    ]
+  }
+}

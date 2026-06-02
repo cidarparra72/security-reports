@@ -1,0 +1,195 @@
+# Security Pipeline Configuration for Alipay Mini Program
+# Azure DevOps Pipeline - Vulnerability Scanning
+
+trigger:
+  branches:
+    include:
+      - main
+      - develop
+      - 'release/*'
+
+pr:
+  branches:
+    include:
+      - main
+      - develop
+
+variables:
+  # Tool versions
+  nodeVersion: '18.x'
+  npmVersion: 'latest'
+  
+  # Security thresholds
+  criticalVulnerabilities: 0
+  highVulnerabilities: 0
+  mediumVulnerabilities: 5
+  
+  # Report paths
+  apiScanReport: '$(Build.ArtifactStagingDirectory)/api-scan-report.json'
+  securityReport: '$(Build.ArtifactStagingDirectory)/security-report.html'
+
+stages:
+  # Stage 1: Code Security Analysis
+  - stage: SecurityScan
+    displayName: 'Security Vulnerability Scan'
+    jobs:
+      - job: DependencyVulnerabilities
+        displayName: 'Check Dependency Vulnerabilities'
+        pool:
+          vmImage: 'ubuntu-latest'
+        steps:
+          - task: NodeTool@0
+            inputs:
+              versionSpec: '$(nodeVersion)'
+            displayName: 'Install Node.js'
+          
+          - script: |
+              npm install
+              npm audit --json > audit-report.json
+            displayName: 'Install dependencies and audit'
+            continueOnError: true
+          
+          - task: PublishBuildArtifacts@1
+            inputs:
+              pathToPublish: 'audit-report.json'
+              artifactName: 'dependency-audit'
+          
+          - task: AzureFunctionApp@1
+            condition: failed()
+            inputs:
+              # Custom security notification task
+              connectionType: 'PublishProfile'
+
+      - job: APISecurityScan
+        displayName: 'API Vulnerability Scanner'
+        pool:
+          vmImage: 'ubuntu-latest'
+        steps:
+          - checkout: self
+            clean: true
+            fetchDepth: 1
+          
+          - task: Python@3
+            inputs:
+              versionSpec: '3.9'
+              addPythonPathToPath: true
+            displayName: 'Setup Python'
+          
+          - script: |
+              pip install safety bandit
+              python -m security.api_scanner --output $(apiScanReport)
+            displayName: 'Run API Security Scan'
+            continueOnError: true
+          
+          - task: PublishBuildArtifacts@1
+            inputs:
+              pathToPublish: '$(Build.ArtifactStagingDirectory)/api-scan-report.json'
+              artifactName: 'api-scan'
+
+      - job: SecretDetection
+        displayName: 'Secret Detection'
+        pool:
+          vmImage: 'ubuntu-latest'
+        steps:
+          - checkout: self
+            clean: true
+            fetchDepth: 1
+          
+          - task: GitHub@0
+            inputs:
+              connectionType: 'GitHub'
+              repository: '$(Build.Repository.Name)'
+              action: 'execute'
+              script: |
+                pip install truffleHog
+                git log --all --pretty=format:%n --name-only | grep -E "\.(js|ts|json|axml|acss)$" | xargs trufflehog filesystem .
+            displayName: 'Scan for secrets'
+            continueOnError: true
+
+  # Stage 2: Generate Security Report
+  - stage: GenerateReport
+    displayName: 'Generate Security Report'
+    dependsOn: SecurityScan
+    jobs:
+      - job: CreateReport
+        displayName: 'Create HTML Security Report'
+        pool:
+          vmImage: 'ubuntu-latest'
+        steps:
+          - download: current
+            artifact: 'dependency-audit'
+            displayName: 'Download dependency audit'
+          
+          - download: current
+            artifact: 'api-scan'
+            displayName: 'Download API scan results'
+          
+          - script: |
+              python -m security.report_generator \
+                --input ./dependency-audit/audit-report.json \
+                --input ./api-scan/api-scan-report.json \
+                --output $(securityReport) \
+                --format html
+            displayName: 'Generate security report'
+          
+          - task: PublishBuildArtifacts@1
+            inputs:
+              pathToPublish: '$(Build.ArtifactStagingDirectory)/security-report.html'
+              artifactName: 'security-report'
+
+  # Stage 3: Publish to Azure DevOps
+  - stage: PublishResults
+    displayName: 'Publish Results'
+    dependsOn: GenerateReport
+    condition: succeeded()
+    jobs:
+      - job: PublishToAzureDevOps
+        displayName: 'Publish Security Results'
+        pool:
+          vmImage: 'ubuntu-latest'
+        steps:
+          - download: current
+            artifact: 'security-report'
+            displayName: 'Download security report'
+          
+          - task: AzureWebApp@1
+            inputs:
+              # Publish to security dashboard
+              azureSubscription: '$(azureServiceConnection)'
+              appType: 'webApp'
+              appName: 'security-dashboard'
+              deploymentMethod: 'runFromPackage'
+          
+          - task: Bash@3
+            inputs:
+              targetType: 'inline'
+              script: |
+                echo "##vso[task.logissue type=warning]Security scan completed"
+                echo "##vso[build.addbuildtag]security-scan"
+            displayName: 'Add build tags'
+
+  # Stage 4: Gate Check (optional - for PR gates)
+  - stage: SecurityGate
+    displayName: 'Security Gate Check'
+    dependsOn: SecurityScan
+    condition: and(succeeded(), eq(variables['Build.Reason'], 'PullRequest'))
+    jobs:
+      - job: GateCheck
+        displayName: 'Verify Security Thresholds'
+        pool:
+          vmImage: 'ubuntu-latest'
+        steps:
+          - script: |
+              # Check if vulnerabilities exceed thresholds
+              CRITICAL=$(jq '.metadata.totalCritical // 0' audit-report.json)
+              HIGH=$(jq '.metadata.totalHigh // 0' audit-report.json)
+              
+              if [ $CRITICAL -gt $(criticalVulnerabilities) ]; then
+                echo "##vso[task.logissue type=error]Critical vulnerabilities found: $CRITICAL (threshold: $(criticalVulnerabilities))"
+                exit 1
+              fi
+              
+              if [ $HIGH -gt $(highVulnerabilities) ]; then
+                echo "##vso[task.logissue type=warning]High vulnerabilities found: $HIGH (threshold: $(highVulnerabilities))"
+              fi
+            displayName: 'Check security thresholds'

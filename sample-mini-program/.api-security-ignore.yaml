@@ -1,0 +1,7 @@
+# Opcional: reduce falsos positivos del escáner estático (pattern_id + ruta).
+# Ver documentación en el informe HTML sección 8.3.
+suppress:
+  - pattern_id: XSS_INNER_OUTER_HTML
+    path_contains: "/__tests__/"
+  - pattern_id: HARDCODED_API_KEY_MARKERS
+    path_suffix: ".mock.js"
