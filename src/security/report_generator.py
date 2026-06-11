@@ -24,8 +24,8 @@ from .vuln_filters import filter_vulnerabilities_for_report, is_lan_insecure_htt
 
 from reportlab.lib import colors
 from reportlab.lib.pagesizes import A4
-from reportlab.lib.styles import getSampleStyleSheet
-from reportlab.platypus import Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
+from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
+from reportlab.platypus import PageBreak, Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
 
 # Resolve templates directory relative to this file
 _TEMPLATES_DIR = Path(__file__).parent / "templates"
@@ -400,118 +400,400 @@ class EthicalHackingReportGenerator:
             json.dump(data, f, indent=2, ensure_ascii=False)
         print(f"JSON guardado: {output_file}")
 
+    @staticmethod
+    def _pdf_table_style() -> TableStyle:
+        return TableStyle(
+            [
+                ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#1a365d")),
+                ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
+                ("GRID", (0, 0), (-1, -1), 0.25, colors.grey),
+                ("FONTSIZE", (0, 0), (-1, -1), 7),
+                ("VALIGN", (0, 0), (-1, -1), "TOP"),
+                ("ROWBACKGROUNDS", (0, 1), (-1, -1), [colors.white, colors.HexColor("#f8fafc")]),
+            ]
+        )
+
+    @staticmethod
+    def _vuln_record_as_dict(v: Any) -> Dict[str, Any]:
+        if isinstance(v, VulnerabilityReport):
+            return asdict(v)
+        if isinstance(v, dict):
+            return v
+        return {}
+
+    def _pdf_cell(self, text: str, cell_style: ParagraphStyle) -> Paragraph:
+        safe = escape(str(text or "")).replace("\n", "<br/>")
+        return Paragraph(safe or "—", cell_style)
+
+    def _pdf_append_vuln_detail(
+        self,
+        story: List[Any],
+        v: Any,
+        label: str,
+        styles: Any,
+        body_style: ParagraphStyle,
+        small_style: ParagraphStyle,
+    ) -> None:
+        d = self._vuln_record_as_dict(v)
+        if not d:
+            return
+        story.append(
+            Paragraph(
+                f"<b>{escape(label)} {escape(str(d.get('title', 'Unknown')))}</b> "
+                f"({escape(str(d.get('severity', '')))})",
+                styles["Heading4"],
+            )
+        )
+        story.append(
+            Paragraph(
+                f"Estado: {escape(str(d.get('status', '')))} | "
+                f"CWE: {escape(str(d.get('cwe_id') or 'N/A'))} | "
+                f"CVSS: {escape(str(d.get('cvss', '')))} | "
+                f"Categoria: {escape(str(d.get('category', '')))}",
+                small_style,
+            )
+        )
+        story.append(
+            Paragraph(f"Endpoint: {escape(str(d.get('endpoint') or 'N/A'))}", small_style)
+        )
+        story.append(Paragraph(f"<b>Descripcion:</b> {escape(str(d.get('description', '')))}", body_style))
+        if d.get("impact"):
+            story.append(Paragraph(f"<b>Impacto:</b> {escape(str(d.get('impact', '')))}", body_style))
+        if d.get("exploit_text"):
+            story.append(
+                Paragraph(f"<b>Explotacion / evidencia:</b> {escape(str(d.get('exploit_text', '')))}", body_style)
+            )
+        if d.get("poc"):
+            poc = escape(str(d.get("poc", ""))).replace("\n", "<br/>")
+            story.append(Paragraph(f"<b>PoC:</b><br/><font face='Courier' size='7'>{poc}</font>", body_style))
+        steps = d.get("steps_to_reproduce") or []
+        if steps:
+            steps_html = "".join(f"<li>{escape(str(s))}</li>" for s in steps)
+            story.append(Paragraph(f"<b>Pasos:</b><ol>{steps_html}</ol>", body_style))
+        story.append(
+            Paragraph(f"<b>Mitigacion:</b> {escape(str(d.get('recommendation', '')))}", body_style)
+        )
+        refs = d.get("references") or []
+        if refs:
+            refs_html = "".join(f"<li>{escape(str(r))}</li>" for r in refs)
+            story.append(Paragraph(f"<b>Referencias:</b><ul>{refs_html}</ul>", small_style))
+        if d.get("false_positive_note"):
+            story.append(
+                Paragraph(
+                    f"<b>Nota FP:</b> {escape(str(d.get('false_positive_note', '')))}",
+                    small_style,
+                )
+            )
+        story.append(Spacer(1, 10))
+
     def generate_pdf(self, output_file: str):
         summary = self._get_summary()
         sorted_vulns = sorted(
             self.vulnerabilities, key=lambda v: self.SEVERITY_ORDER.get(v.severity, 99)
         )
-        doc = SimpleDocTemplate(output_file, pagesize=A4, leftMargin=30, rightMargin=30)
+        api_endpoint_report = self._enrich_api_endpoint_report()
+        doc = SimpleDocTemplate(
+            output_file,
+            pagesize=A4,
+            leftMargin=28,
+            rightMargin=28,
+            topMargin=36,
+            bottomMargin=36,
+        )
         styles = getSampleStyleSheet()
-        story = []
+        body_style = ParagraphStyle(
+            "PdfBody",
+            parent=styles["Normal"],
+            fontSize=8,
+            leading=11,
+            spaceAfter=4,
+        )
+        small_style = ParagraphStyle(
+            "PdfSmall",
+            parent=styles["Normal"],
+            fontSize=7,
+            leading=9,
+            spaceAfter=3,
+        )
+        cell_style = ParagraphStyle(
+            "PdfCell",
+            parent=styles["Normal"],
+            fontSize=7,
+            leading=9,
+        )
+        story: List[Any] = []
+        scan_label = self.scan_date.strftime("%d/%m/%Y %H:%M UTC")
+
         story.append(Paragraph("RETEST ETHICAL HACKING", styles["Title"]))
         story.append(
             Paragraph(
-                f"Proyecto: {escape(self.project_name)} | Fecha: {self.scan_date.strftime('%d/%m/%Y')}",
-                styles["Normal"],
+                f"Proyecto: {escape(self.project_name)} | Fecha: {escape(scan_label)} | v{escape(self.version)}",
+                body_style,
             )
         )
-        story.append(Spacer(1, 12))
         story.append(
             Paragraph(
                 f"Target API: {escape(self.target_url or 'N/A')} | Total hallazgos: {len(sorted_vulns)}",
-                styles["Normal"],
+                body_style,
             )
         )
         story.append(
             Paragraph(
-                f"Critica: {summary['CRITICAL']} | Alta: {summary['HIGH']} | Media: {summary['MEDIUM']} | Baja: {summary['LOW']}",
-                styles["Normal"],
+                f"Critica: {summary['CRITICAL']} | Alta: {summary['HIGH']} | "
+                f"Media: {summary['MEDIUM']} | Baja: {summary['LOW']}",
+                body_style,
             )
         )
         if self.executive_summary.get("headline"):
             story.append(
                 Paragraph(
                     f"Priorizacion: {escape(str(self.executive_summary.get('headline', '')))}",
-                    styles["Normal"],
+                    body_style,
                 )
             )
         for act in self.executive_summary.get("recommended_actions") or []:
-            story.append(Paragraph(f"- {escape(str(act))}", styles["Normal"]))
+            story.append(Paragraph(f"- {escape(str(act))}", body_style))
+        if self.scan_scope.get("files_scanned") is not None:
+            story.append(
+                Paragraph(
+                    f"Archivos escaneados en repo: {escape(str(self.scan_scope.get('files_scanned', 0)))}",
+                    body_style,
+                )
+            )
         if self.scan_scope.get("extensions"):
             story.append(
                 Paragraph(
                     f"Extensiones analizadas: {escape(', '.join(str(x) for x in self.scan_scope['extensions'][:20]))}",
-                    styles["Normal"],
+                    body_style,
                 )
             )
-        story.append(Spacer(1, 12))
-        meta = self.endpoint_report_meta or {}
-        if meta.get("report_lists_full_collection") and meta.get("inventory_total"):
+        if self.external_checks_summary:
+            story.append(Paragraph("<b>Checks externos:</b>", body_style))
+            for row in self.external_checks_summary[:12]:
+                if isinstance(row, dict):
+                    story.append(
+                        Paragraph(
+                            f"- {escape(str(row.get('tool', row.get('id', 'check'))))}: "
+                            f"{escape(str(row.get('status', row.get('reason', ''))))}",
+                            small_style,
+                        )
+                    )
+
+        story.append(Spacer(1, 10))
+        story.append(Paragraph("4.1 Retest diff (antes vs despues)", styles["Heading2"]))
+        rd = self.retest_diff or {}
+        if rd.get("has_previous"):
             story.append(
                 Paragraph(
-                    f"Colección importada: {escape(str(meta.get('inventory_total')))} rutas en total; "
-                    f"este informe detalla solo las {escape(str(meta.get('dynamic_scope_total')))} "
-                    f"seleccionadas para el análisis.",
-                    styles["Normal"],
+                    f"Delta total: {escape(str(rd.get('delta_total', 0)))} | "
+                    f"Nuevos: {len(rd.get('new_titles') or [])} | "
+                    f"Resueltos: {len(rd.get('resolved_titles') or [])}",
+                    body_style,
                 )
             )
-            story.append(Spacer(1, 8))
-        if self.api_endpoint_report:
-            story.append(Paragraph("Endpoints analizados", styles["Heading2"]))
-            endpoint_table_data = [["#", "Metodo", "Path", "Hallazgos"]]
-            for i, e in enumerate(self.api_endpoint_report, 1):
-                endpoint_table_data.append(
-                    [
-                        str(i),
-                        str(e.get("method", "GET")),
-                        str(e.get("path", ""))[:85],
-                        str(e.get("finding_count", 0)),
-                    ]
-                )
-            endpoint_table = Table(endpoint_table_data, repeatRows=1)
-            endpoint_table.setStyle(
-                TableStyle(
-                    [
-                        ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#1a365d")),
-                        ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
-                        ("GRID", (0, 0), (-1, -1), 0.25, colors.grey),
-                        ("FONTSIZE", (0, 0), (-1, -1), 8),
-                        ("VALIGN", (0, 0), (-1, -1), "TOP"),
-                    ]
-                )
-            )
-            story.append(endpoint_table)
-            story.append(Spacer(1, 14))
+            for title in (rd.get("new_titles") or [])[:15]:
+                story.append(Paragraph(f"+ {escape(str(title))}", small_style))
+            for title in (rd.get("resolved_titles") or [])[:15]:
+                story.append(Paragraph(f"- {escape(str(title))}", small_style))
+        else:
+            story.append(Paragraph("Sin baseline previo en la base de datos para comparar.", body_style))
 
-        table_data = [["#", "Vulnerabilidad", "Riesgo", "CVSS", "Estado", "Endpoint"]]
+        story.append(Spacer(1, 8))
+        story.append(Paragraph("4.2 Cuadro resumen", styles["Heading2"]))
+        table_data: List[List[Any]] = [
+            [
+                Paragraph("<b>#</b>", cell_style),
+                Paragraph("<b>Vulnerabilidad</b>", cell_style),
+                Paragraph("<b>Riesgo</b>", cell_style),
+                Paragraph("<b>CVSS</b>", cell_style),
+                Paragraph("<b>Estado</b>", cell_style),
+                Paragraph("<b>Endpoint</b>", cell_style),
+            ]
+        ]
         for i, v in enumerate(sorted_vulns, 1):
             table_data.append(
-                [str(i), v.title[:70], v.severity, f"{v.cvss}", v.status, (v.endpoint or "N/A")[:60]]
-            )
-        table = Table(table_data, repeatRows=1)
-        table.setStyle(
-            TableStyle(
                 [
-                    ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#1a365d")),
-                    ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
-                    ("GRID", (0, 0), (-1, -1), 0.25, colors.grey),
-                    ("FONTSIZE", (0, 0), (-1, -1), 8),
-                    ("VALIGN", (0, 0), (-1, -1), "TOP"),
+                    str(i),
+                    self._pdf_cell(v.title, cell_style),
+                    self._pdf_cell(v.severity, cell_style),
+                    self._pdf_cell(f"{v.cvss}", cell_style),
+                    self._pdf_cell(v.status, cell_style),
+                    self._pdf_cell(v.endpoint or "N/A", cell_style),
                 ]
             )
+        summary_table = Table(
+            table_data,
+            colWidths=[22, 150, 42, 32, 52, 140],
+            repeatRows=1,
         )
-        story.append(table)
-        story.append(Spacer(1, 14))
-        story.append(Paragraph("Detalle tecnico", styles["Heading2"]))
-        for i, v in enumerate(sorted_vulns, 1):
-            story.append(Paragraph(f"{i}. {escape(v.title)} ({escape(v.severity)})", styles["Heading4"]))
-            story.append(Paragraph(f"Estado: {escape(v.status)} | CWE: {escape(v.cwe_id or 'N/A')}", styles["Normal"]))
-            story.append(Paragraph(f"Endpoint: {escape(v.endpoint or 'N/A')}", styles["Normal"]))
-            story.append(Paragraph(f"Descripcion: {escape(v.description)}", styles["Normal"]))
-            story.append(Paragraph(f"Recomendacion: {escape(v.recommendation)}", styles["Normal"]))
-            if v.false_positive_note:
-                story.append(Paragraph(f"Nota FP: {escape(v.false_positive_note)}", styles["Normal"]))
-            story.append(Spacer(1, 8))
+        summary_table.setStyle(self._pdf_table_style())
+        story.append(summary_table)
+
+        story.append(Spacer(1, 12))
+        story.append(Paragraph("5.1 Manual checks asistidos", styles["Heading2"]))
+        if self.manual_assisted:
+            manual_rows: List[List[Any]] = [
+                [
+                    Paragraph("<b>Check</b>", cell_style),
+                    Paragraph("<b>Estado</b>", cell_style),
+                    Paragraph("<b>Endpoint</b>", cell_style),
+                    Paragraph("<b>Severidad</b>", cell_style),
+                ]
+            ]
+            for x in self.manual_assisted:
+                if not isinstance(x, dict):
+                    continue
+                manual_rows.append(
+                    [
+                        self._pdf_cell(x.get("check_id", ""), cell_style),
+                        self._pdf_cell(x.get("status", ""), cell_style),
+                        self._pdf_cell(x.get("endpoint", ""), cell_style),
+                        self._pdf_cell(x.get("severity", ""), cell_style),
+                    ]
+                )
+            manual_table = Table(manual_rows, colWidths=[90, 70, 180, 60], repeatRows=1)
+            manual_table.setStyle(self._pdf_table_style())
+            story.append(manual_table)
+        else:
+            story.append(Paragraph("Sin evidencias manuales cargadas.", body_style))
+
+        meta = self.endpoint_report_meta or {}
+        if api_endpoint_report:
+            story.append(Spacer(1, 12))
+            story.append(Paragraph("5.2 Alcance por endpoint", styles["Heading2"]))
+            if meta.get("report_lists_full_collection") and meta.get("inventory_total"):
+                story.append(
+                    Paragraph(
+                        f"Coleccion importada: {escape(str(meta.get('inventory_total')))} rutas en total; "
+                        f"este informe detalla las {escape(str(meta.get('dynamic_scope_total')))} "
+                        f"seleccionadas para el analisis.",
+                        body_style,
+                    )
+                )
+            endpoint_rows: List[List[Any]] = [
+                [
+                    Paragraph("<b>#</b>", cell_style),
+                    Paragraph("<b>Metodo</b>", cell_style),
+                    Paragraph("<b>Path</b>", cell_style),
+                    Paragraph("<b>URL</b>", cell_style),
+                    Paragraph("<b>Sonda</b>", cell_style),
+                    Paragraph("<b>Hallazgos</b>", cell_style),
+                ]
+            ]
+            for i, e in enumerate(api_endpoint_report, 1):
+                probe = e.get("probe") if isinstance(e.get("probe"), dict) else {}
+                probe_txt = str(probe.get("message") or "—")
+                if probe.get("get_status") is not None:
+                    probe_txt = f"GET {probe.get('get_status')}; {probe_txt}"
+                finding_n = e.get("scoped_finding_count", e.get("finding_count", 0))
+                endpoint_rows.append(
+                    [
+                        str(i),
+                        self._pdf_cell(e.get("method", "GET"), cell_style),
+                        self._pdf_cell(e.get("path", ""), cell_style),
+                        self._pdf_cell(e.get("url", ""), cell_style),
+                        self._pdf_cell(probe_txt, cell_style),
+                        str(finding_n),
+                    ]
+                )
+            endpoint_table = Table(
+                endpoint_rows,
+                colWidths=[18, 38, 78, 130, 95, 42],
+                repeatRows=1,
+            )
+            endpoint_table.setStyle(self._pdf_table_style())
+            story.append(endpoint_table)
+
+            story.append(PageBreak())
+            story.append(Paragraph("5.2.1 Detalle por endpoint seleccionado", styles["Heading2"]))
+            for i, e in enumerate(api_endpoint_report, 1):
+                method = str(e.get("method", "GET"))
+                path = str(e.get("path", ""))
+                url = str(e.get("url", ""))
+                story.append(
+                    Paragraph(
+                        f"<b>{i}. {escape(method)} {escape(path)}</b>",
+                        styles["Heading3"],
+                    )
+                )
+                story.append(Paragraph(escape(url), small_style))
+                probe = e.get("probe") if isinstance(e.get("probe"), dict) else None
+                if probe:
+                    story.append(
+                        Paragraph(
+                            f"<b>Analisis HTTP (sonda):</b> {escape(str(probe.get('message', '')))}",
+                            body_style,
+                        )
+                    )
+                files = e.get("files") or []
+                if files:
+                    file_bits = []
+                    for sf in files[:5]:
+                        if isinstance(sf, dict):
+                            loc = str(sf.get("file", ""))
+                            if sf.get("line"):
+                                loc += f":{sf.get('line')}"
+                            file_bits.append(loc)
+                    if file_bits:
+                        story.append(
+                            Paragraph(
+                                f"Fuente en repo: {escape(', '.join(file_bits))}",
+                                small_style,
+                            )
+                        )
+                detail_vulns = e.get("detail_vulns") or []
+                if detail_vulns:
+                    for j, v in enumerate(detail_vulns, 1):
+                        self._pdf_append_vuln_detail(
+                            story, v, f"{i}.{j}", styles, body_style, small_style
+                        )
+                else:
+                    story.append(
+                        Paragraph(
+                            "Sin hallazgos vinculados a este endpoint en el alcance del scan.",
+                            body_style,
+                        )
+                    )
+                story.append(Spacer(1, 8))
+
+        story.append(PageBreak())
+        story.append(Paragraph("6. Vulnerabilidades — detalle tecnico", styles["Heading2"]))
+        if sorted_vulns:
+            for i, v in enumerate(sorted_vulns, 1):
+                self._pdf_append_vuln_detail(story, v, f"6.{i}", styles, body_style, small_style)
+        else:
+            story.append(Paragraph("No se encontraron vulnerabilidades.", body_style))
+
+        annex = self.technical_annex or {}
+        openapi_specs = annex.get("openapi_specs_discovered") or []
+        commands = annex.get("commands") or []
+        references = annex.get("references") or [
+            "https://owasp.org/API-Security/",
+            "https://cwe.mitre.org/",
+        ]
+        if openapi_specs or commands or references:
+            story.append(PageBreak())
+            story.append(Paragraph("8. Anexos tecnicos", styles["Heading2"]))
+            if openapi_specs:
+                story.append(Paragraph("<b>8.0 OpenAPI / Swagger en repositorio</b>", body_style))
+                for p in openapi_specs[:20]:
+                    story.append(Paragraph(f"- {escape(str(p))}", small_style))
+            if commands:
+                story.append(Paragraph("<b>8.1 Comandos y scripts utilizados</b>", body_style))
+                for c in commands[:20]:
+                    story.append(Paragraph(f"- <font face='Courier' size='7'>{escape(str(c))}</font>", small_style))
+            story.append(Paragraph("<b>8.2 Referencias OWASP / CWE</b>", body_style))
+            for r in references[:20]:
+                story.append(Paragraph(f"- {escape(str(r))}", small_style))
+
+        story.append(Spacer(1, 16))
+        story.append(
+            Paragraph(
+                f"Generado por API Security Scanner v{escape(self.version)} — {escape(scan_label)}",
+                small_style,
+            )
+        )
+        Path(output_file).parent.mkdir(parents=True, exist_ok=True)
         doc.build(story)
         print(f"PDF generado: {output_file}")
 

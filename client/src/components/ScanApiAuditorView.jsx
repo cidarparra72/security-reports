@@ -3,6 +3,7 @@
 import { useCallback, useMemo, useState } from "react";
 import Link from "next/link";
 import { API_BASE, errorMessage } from "../hooks/useScan";
+import { API_COLLECTION_ACCEPT } from "../lib/collectionFileAccept";
 
 const SEVERITIES = ["CRITICAL", "HIGH", "MEDIUM", "LOW"];
 
@@ -243,9 +244,9 @@ export function ScanApiAuditorView() {
         </label>
 
         <label className="file-drop file-drop-collection">
-          <span>Colección Postman (.json)</span>
-          <input type="file" accept=".json,application/json" onChange={handleFile} />
-          <small>{fileName || "Exporta Collection v2.1 desde Postman"}</small>
+          <span>Colección Postman</span>
+          <input type="file" accept={API_COLLECTION_ACCEPT} onChange={handleFile} />
+          <small>{fileName || "Exporta Collection v2.1 (.json o .postman_collection)"}</small>
         </label>
 
         <button

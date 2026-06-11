@@ -10,6 +10,50 @@ const DEFAULT_JSON = `[
 const DEFAULT_PATHS = `GET /api/health
 GET /v1/status`;
 
+/** Evita timeouts del proxy Next→FastAPI con muchos endpoints en una sola petición. */
+const PROBE_BATCH_SIZE = 12;
+
+function mergeProbeReports(chunks) {
+  if (!chunks?.length) return null;
+  if (chunks.length === 1) return chunks[0];
+  const allResults = chunks.flatMap((c) => c.results || []);
+  const allTable = chunks.flatMap((c) => c.table || []);
+  const errors = allResults.filter((r) => r?.result?.error).length;
+  const ok = allResults.filter(
+    (r) =>
+      !r?.result?.error &&
+      typeof r?.result?.status_code === "number" &&
+      r.result.status_code >= 200 &&
+      r.result.status_code < 400
+  ).length;
+  const latencies = allResults
+    .map((r) => r?.result?.elapsed_ms)
+    .filter((n) => typeof n === "number");
+  const avg =
+    latencies.length > 0
+      ? Math.round((latencies.reduce((a, b) => a + b, 0) / latencies.length) * 100) / 100
+      : null;
+  return {
+    generated_at: chunks[chunks.length - 1].generated_at,
+    summary: {
+      total_probed: allResults.length,
+      with_error: errors,
+      http_2xx_or_3xx: ok,
+      avg_elapsed_ms: avg,
+    },
+    table: allTable,
+    results: allResults,
+  };
+}
+
+function chunkIndices(indices, size) {
+  const out = [];
+  for (let i = 0; i < indices.length; i += size) {
+    out.push(indices.slice(i, i + size));
+  }
+  return out;
+}
+
 export function EndpointProbeView() {
   const [inputMode, setInputMode] = useState("json"); // json | base_url
   const [jsonText, setJsonText] = useState(DEFAULT_JSON);
@@ -22,6 +66,7 @@ export function EndpointProbeView() {
   const [selected, setSelected] = useState(() => new Set());
   const [preparing, setPreparing] = useState(false);
   const [running, setRunning] = useState(false);
+  const [runProgress, setRunProgress] = useState({ done: 0, total: 0 });
   const [error, setError] = useState(null);
   const [report, setReport] = useState(null);
   const [jsonFileHint, setJsonFileHint] = useState(null);
@@ -133,18 +178,37 @@ export function EndpointProbeView() {
     }
     setError(null);
     setRunning(true);
+    setRunProgress({ done: 0, total: indices.length });
+    const batches = chunkIndices(indices, PROBE_BATCH_SIZE);
+    const mergedChunks = [];
+    let doneCount = 0;
     try {
-      const res = await fetch(`${API_BASE}/api-probe/run`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          endpoints,
-          timeout_sec: timeoutSec,
-          indices,
-        }),
-      });
-      if (!res.ok) throw new Error(await errorMessage(res));
-      const payload = await res.json();
+      for (let b = 0; b < batches.length; b++) {
+        const batch = batches[b];
+        const res = await fetch(`${API_BASE}/api-probe/run`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            endpoints,
+            timeout_sec: timeoutSec,
+            indices: batch,
+          }),
+        });
+        if (!res.ok) {
+          const detail = await errorMessage(res);
+          if (res.status === 500 || detail === "Internal Server Error") {
+            throw new Error(
+              `El lote ${b + 1}/${batches.length} falló (timeout del servidor). ` +
+                `Prueba con menos endpoints seleccionados o baja el timeout (ahora ${timeoutSec}s).`
+            );
+          }
+          throw new Error(detail);
+        }
+        mergedChunks.push(await res.json());
+        doneCount += batch.length;
+        setRunProgress({ done: doneCount, total: indices.length });
+      }
+      const payload = mergeProbeReports(mergedChunks);
       setReport(payload);
       const rowCount = (payload?.results || payload?.table || []).length;
       if (!rowCount) {
@@ -154,13 +218,21 @@ export function EndpointProbeView() {
       }
     } catch (e) {
       const msg = e?.message || String(e);
-      setError(
-        msg === "Failed to fetch" || msg.includes("NetworkError")
-          ? "No hay conexión con el API. Usa el front con «npm run dev» (Next reenvía a :8000) o define NEXT_PUBLIC_API_BASE=http://127.0.0.1:8000 y asegúrate de que el backend esté en marcha."
-          : msg
-      );
+      if (mergedChunks.length > 0) {
+        setReport(mergeProbeReports(mergedChunks));
+        setError(
+          `${msg} Se muestran los ${mergedChunks.flatMap((c) => c.results || []).length} endpoints analizados antes del fallo.`
+        );
+      } else {
+        setError(
+          msg === "Failed to fetch" || msg.includes("NetworkError")
+            ? "No hay conexión con el API o la petición tardó demasiado. El análisis de muchos endpoints se hace por lotes; comprueba que el backend (:8000) siga en marcha."
+            : msg
+        );
+      }
     } finally {
       setRunning(false);
+      setRunProgress({ done: 0, total: 0 });
     }
   }
 
@@ -451,13 +523,27 @@ export function EndpointProbeView() {
             )}
           </div>
 
+          {selected.size > PROBE_BATCH_SIZE && !running && (
+            <p className="hint" role="note">
+              {selected.size} seleccionados: se analizarán en lotes de {PROBE_BATCH_SIZE} para evitar timeout.
+            </p>
+          )}
+          {running && runProgress.total > 0 && (
+            <p className="hint probe-seq-progress" role="status">
+              Progreso: {runProgress.done} / {runProgress.total} endpoints…
+            </p>
+          )}
           <button
             type="button"
             className="button primary probe-run-btn"
             disabled={running || !endpoints.length || selected.size === 0}
             onClick={handleRunSelected}
           >
-            {running ? "Analizando…" : "Analizar seleccionados"}
+            {running
+              ? runProgress.total > 0
+                ? `Analizando ${runProgress.done}/${runProgress.total}…`
+                : "Analizando…"
+              : "Analizar seleccionados"}
           </button>
 
           <div className="probe-zap-block">

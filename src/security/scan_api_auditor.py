@@ -302,63 +302,6 @@ def count_by_severity(rows: List[FindingRow]) -> Dict[str, int]:
     return counts
 
 
-class PDFReport(FPDF):
-    def header(self) -> None:
-        self.set_font("Arial", "B", 14)
-        self.set_text_color(26, 35, 126)
-        self.cell(0, 10, "Reporte de Auditoria de Seguridad API 360", 0, 1, "C")
-        self.ln(5)
-
-    def chapter_title(self, label: str) -> None:
-        self.set_font("Arial", "B", 11)
-        self.set_fill_color(230, 230, 230)
-        self.cell(0, 8, label, 0, 1, "L", True)
-        self.ln(3)
-
-    def draw_table(self, header: List[str], data: List[Tuple[str, str, str, str]]) -> None:
-        w_sev, w_end, w_hal, w_sol = 20, 50, 50, 70
-        self.set_font("Arial", "B", 8)
-        self.set_fill_color(26, 35, 126)
-        self.set_text_color(255, 255, 255)
-        self.cell(w_sev, 8, header[0], 1, 0, "C", True)
-        self.cell(w_end, 8, header[1], 1, 0, "C", True)
-        self.cell(w_hal, 8, header[2], 1, 0, "C", True)
-        self.cell(w_sol, 8, header[3], 1, 0, "C", True)
-        self.ln()
-        self.set_font("Arial", "", 7)
-        self.set_text_color(0, 0, 0)
-        for row in data:
-            c0 = str(row[0]).encode("latin-1", "ignore").decode("latin-1")
-            c1 = str(row[1]).encode("latin-1", "ignore").decode("latin-1")
-            c2 = str(row[2]).encode("latin-1", "ignore").decode("latin-1")
-            c3 = str(row[3]).encode("latin-1", "ignore").decode("latin-1")
-            lines_c1 = len(self.multi_cell(w_end, 5, c1, split_only=True))
-            lines_c2 = len(self.multi_cell(w_hal, 5, c2, split_only=True))
-            lines_c3 = len(self.multi_cell(w_sol, 5, c3, split_only=True))
-            max_lines = max(1, lines_c1, lines_c2, lines_c3)
-            row_height = max_lines * 5
-            if self.get_y() + row_height > 260:
-                self.add_page()
-            x = self.get_x()
-            y = self.get_y()
-            if row[0] == "CRITICAL":
-                self.set_fill_color(255, 200, 200)
-            elif row[0] == "HIGH":
-                self.set_fill_color(255, 230, 180)
-            elif row[0] == "MEDIUM":
-                self.set_fill_color(255, 250, 200)
-            else:
-                self.set_fill_color(255, 255, 255)
-            self.cell(w_sev, row_height, c0, 1, 0, "C", True)
-            self.set_fill_color(255, 255, 255)
-            self.multi_cell(w_end, 5, c1, 1, "L")
-            self.set_xy(x + w_sev + w_end, y)
-            self.multi_cell(w_hal, 5, c2, 1, "L")
-            self.set_xy(x + w_sev + w_end + w_hal, y)
-            self.multi_cell(w_sol, 5, c3, 1, "L")
-            self.set_xy(x, y + row_height)
-
-
 def _rows_to_tuples(rows: List[FindingRow]) -> List[Tuple[str, str, str, str]]:
     return [
         (
@@ -379,6 +322,63 @@ def build_pdf_bytes(
         raise RuntimeError(
             "fpdf2 no instalado. Ejecuta: pip install fpdf2"
         )
+
+    class PDFReport(FPDF):
+        def header(self) -> None:
+            self.set_font("Arial", "B", 14)
+            self.set_text_color(26, 35, 126)
+            self.cell(0, 10, "Reporte de Auditoria de Seguridad API 360", 0, 1, "C")
+            self.ln(5)
+
+        def chapter_title(self, label: str) -> None:
+            self.set_font("Arial", "B", 11)
+            self.set_fill_color(230, 230, 230)
+            self.cell(0, 8, label, 0, 1, "L", True)
+            self.ln(3)
+
+        def draw_table(self, header: List[str], data: List[Tuple[str, str, str, str]]) -> None:
+            w_sev, w_end, w_hal, w_sol = 20, 50, 50, 70
+            self.set_font("Arial", "B", 8)
+            self.set_fill_color(26, 35, 126)
+            self.set_text_color(255, 255, 255)
+            self.cell(w_sev, 8, header[0], 1, 0, "C", True)
+            self.cell(w_end, 8, header[1], 1, 0, "C", True)
+            self.cell(w_hal, 8, header[2], 1, 0, "C", True)
+            self.cell(w_sol, 8, header[3], 1, 0, "C", True)
+            self.ln()
+            self.set_font("Arial", "", 7)
+            self.set_text_color(0, 0, 0)
+            for row in data:
+                c0 = str(row[0]).encode("latin-1", "ignore").decode("latin-1")
+                c1 = str(row[1]).encode("latin-1", "ignore").decode("latin-1")
+                c2 = str(row[2]).encode("latin-1", "ignore").decode("latin-1")
+                c3 = str(row[3]).encode("latin-1", "ignore").decode("latin-1")
+                lines_c1 = len(self.multi_cell(w_end, 5, c1, split_only=True))
+                lines_c2 = len(self.multi_cell(w_hal, 5, c2, split_only=True))
+                lines_c3 = len(self.multi_cell(w_sol, 5, c3, split_only=True))
+                max_lines = max(1, lines_c1, lines_c2, lines_c3)
+                row_height = max_lines * 5
+                if self.get_y() + row_height > 260:
+                    self.add_page()
+                x = self.get_x()
+                y = self.get_y()
+                if row[0] == "CRITICAL":
+                    self.set_fill_color(255, 200, 200)
+                elif row[0] == "HIGH":
+                    self.set_fill_color(255, 230, 180)
+                elif row[0] == "MEDIUM":
+                    self.set_fill_color(255, 250, 200)
+                else:
+                    self.set_fill_color(255, 255, 255)
+                self.cell(w_sev, row_height, c0, 1, 0, "C", True)
+                self.set_fill_color(255, 255, 255)
+                self.multi_cell(w_end, 5, c1, 1, "L")
+                self.set_xy(x + w_sev + w_end, y)
+                self.multi_cell(w_hal, 5, c2, 1, "L")
+                self.set_xy(x + w_sev + w_end + w_hal, y)
+                self.multi_cell(w_sol, 5, c3, 1, "L")
+                self.set_xy(x, y + row_height)
+
     pdf = PDFReport()
     pdf.add_page()
     pdf.chapter_title("1. Hallazgos Estaticos")

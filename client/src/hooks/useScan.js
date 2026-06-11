@@ -360,8 +360,6 @@ export function useScan() {
   const [checksCatalog, setChecksCatalog] = useState([]);
   const [scanStatus, setScanStatus] = useState("idle"); // idle | scanning | done
   const [runAdvancedChecks, setRunAdvancedChecks] = useState(true);
-  /** Tope de peticiones HTTP dinámicas por URL de endpoint; 0 = sin límite. */
-  const [dynamicHttpMaxPerEndpoint, setDynamicHttpMaxPerEndpoint] = useState(10);
   /** Post-scan diagnostics (scope, executive summary, external tools). */
   const [scanInsight, setScanInsight] = useState(null);
   /** JWT / sesión usuario principal y segundo usuario (BOLA/IDOR); el backend añade Bearer si hace falta en algunos checks. */
@@ -528,24 +526,6 @@ export function useScan() {
         );
         return { ok: false };
       }
-      if (runAdvancedChecks && !(authToken || "").trim()) {
-        setError(
-          "Con «Checks dinámicos avanzados» activos debes indicar el token usuario A " +
-            "(panel derecho «Sesión API»), o desactiva esa opción si solo quieres análisis sin sesión."
-        );
-        return { ok: false };
-      }
-      if (
-        runAdvancedChecks &&
-        (authToken || "").trim() &&
-        !(secondToken || "").trim() &&
-        typeof window !== "undefined" &&
-        !window.confirm(
-          "No indicaste token usuario B. No se ejecutará la prueba automática BOLA/IDOR. ¿Continuar?"
-        )
-      ) {
-        return { ok: false };
-      }
     }
 
     setError(null);
@@ -573,11 +553,6 @@ export function useScan() {
         }
       }
 
-      const rlMaxHttpRaw = Number(dynamicHttpMaxPerEndpoint);
-      const rlMaxHttp = Number.isFinite(rlMaxHttpRaw)
-        ? Math.max(0, Math.min(100, Math.trunc(rlMaxHttpRaw)))
-        : 10;
-
       let res;
       if (useUpload) {
         const fd = new FormData();
@@ -593,7 +568,7 @@ export function useScan() {
         if (ahTrim) fd.append("auth_headers", ahTrim);
         fd.append("run_advanced_checks", String(runAdvancedChecks));
         fd.append("run_project_tests", String(runProjectTests));
-        fd.append("dynamic_http_max_per_endpoint", String(rlMaxHttp));
+        fd.append("dynamic_http_max_per_endpoint", "0");
         if (zapFile) fd.append("zap_file", zapFile);
         if (burpFile) fd.append("burp_file", burpFile);
         if (apiCollectionFile) fd.append("api_collection_file", apiCollectionFile);
@@ -607,7 +582,7 @@ export function useScan() {
           second_token: (secondToken || "").trim(),
           run_advanced_checks: runAdvancedChecks,
           run_project_tests: runProjectTests,
-          dynamic_http_max_per_endpoint: rlMaxHttp,
+          dynamic_http_max_per_endpoint: 0,
         };
         if (authHeadersDict) payload.auth_headers = authHeadersDict;
         if (trimmedApi) payload.api_url = trimmedApi;
@@ -652,11 +627,12 @@ export function useScan() {
         setSelectedEndpoints(keysPayload);
       }
       setScanStatus("done");
-      return { ok: true, scanId };
+      return { ok: true, scanId: scan_id };
     } catch (err) {
-      setError(isNetworkFetchError(err) ? networkErrorUserMessage() : err?.message || String(err));
+      const msg = isNetworkFetchError(err) ? networkErrorUserMessage() : err?.message || String(err);
+      if (!sequentialPart) setError(msg);
       setScanStatus("idle");
-      return { ok: false };
+      return { ok: false, error: msg };
     } finally {
       if (!sequentialPart) setLoading(false);
     }
@@ -699,6 +675,8 @@ export function useScan() {
     setSequentialScan({ running: true, index: 0, total: list.length, currentKey: list[0] || "" });
 
     const results = [];
+    const onItemComplete = typeof options.onItemComplete === "function" ? options.onItemComplete : null;
+
     for (let i = 0; i < list.length; i++) {
       const key = list[i];
       setSequentialScan({
@@ -707,18 +685,43 @@ export function useScan() {
         total: list.length,
         currentKey: key,
       });
-      const out = await handleScan(null, {
-        endpointKeys: [key],
-        sequentialPart: true,
-        skipResetResults: i > 0,
-        postmanOnly,
-      });
+      let out;
+      try {
+        out = await handleScan(null, {
+          endpointKeys: [key],
+          sequentialPart: true,
+          skipResetResults: i > 0,
+          postmanOnly,
+        });
+      } catch (err) {
+        out = { ok: false, error: err?.message || String(err) };
+      }
+      if (!out || typeof out !== "object") {
+        out = { ok: false, error: "Respuesta de scan inválida" };
+      }
       results.push({ key, ...out });
+      onItemComplete?.(key, out);
     }
 
     setLoading(false);
     setSequentialScan({ running: false, index: 0, total: 0, currentKey: "" });
+
+    const failed = results.filter((r) => !r.ok);
     const ok = results.some((r) => r.ok);
+    if (failed.length === results.length) {
+      setError(
+        failed.length === 1
+          ? failed[0].error || "El análisis falló."
+          : `Los ${failed.length} análisis fallaron. Último: ${failed[failed.length - 1].error || "error"}.`
+      );
+    } else if (failed.length > 0) {
+      setError(
+        `${failed.length} de ${results.length} análisis fallaron; el resto terminó correctamente.`
+      );
+    } else {
+      setError(null);
+    }
+
     return { ok, results };
   }
 
@@ -918,7 +921,6 @@ export function useScan() {
       setSelectedEndpoints(typeof key === "string" && key.trim() ? [key.trim()] : []),
     loadChecksCatalog,
     runAdvancedChecks, setRunAdvancedChecks,
-    dynamicHttpMaxPerEndpoint, setDynamicHttpMaxPerEndpoint,
     scanInsight,
     authToken, setAuthToken, secondToken, setSecondToken,
     authHeadersJson, setAuthHeadersJson,

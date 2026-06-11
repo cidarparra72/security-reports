@@ -378,7 +378,7 @@ class ScanRequest(BaseModel):
         description="Si true, intenta ejecutar tests del repo (npm test o pytest) y guarda resumen en project_tests.",
     )
     dynamic_http_max_per_endpoint: int = Field(
-        10,
+        0,
         ge=0,
         le=100,
         description="Máx. peticiones HTTP dinámicas por URL de endpoint; 0 = sin tope.",
@@ -594,6 +594,18 @@ def _build_executive_summary_block(
     }
 
 
+def _effective_auth_headers(
+    auth_headers: Optional[dict], auth_token: str
+) -> Optional[dict]:
+    """Combina cabeceras extra con Authorization derivada del token A si hace falta."""
+    merged = dict(auth_headers or {})
+    token = (auth_token or "").strip()
+    if token and not any(k.lower() == "authorization" for k in merged):
+        bearer = token if token.lower().startswith("bearer ") else f"Bearer {token}"
+        merged["Authorization"] = bearer
+    return merged or None
+
+
 def _merge_endpoint_details_lists(*lists: list) -> list[dict]:
     """Une listas de detalles de endpoint sin duplicar por método+URL."""
     by_key: dict[str, dict] = {}
@@ -671,7 +683,7 @@ def _run_scan_in_background(
     run_advanced_checks: bool = True,
     collection_inventory_full: Optional[list[dict]] = None,
     run_project_tests: bool = False,
-    dynamic_http_max_per_endpoint: int = 10,
+    dynamic_http_max_per_endpoint: int = 0,
 ) -> None:
     try:
         from security.http_probe_budget import HttpRequestBudget
@@ -868,13 +880,19 @@ def _run_scan_in_background(
                         summary[s] += 1
                 result["summary"] = summary
                 result["total_vulnerabilities"] = len(result.get("vulnerabilities", []))
+        session_headers = _effective_auth_headers(auth_headers, auth_token)
+
         if auth_token and run_advanced_checks:
             from security.jwt_inspector import inspect_jwt, test_alg_none_on_server
             jwt_findings = inspect_jwt(auth_token)
             if jwt_findings:
                 result["vulnerabilities"].extend([v.__dict__ for v in jwt_findings])
             if api_url or result.get("dynamic_api_url"):
-                alg_findings = test_alg_none_on_server(str(api_url or result.get("dynamic_api_url") or ""), auth_token, auth_headers)
+                alg_findings = test_alg_none_on_server(
+                    str(api_url or result.get("dynamic_api_url") or ""),
+                    auth_token,
+                    session_headers,
+                )
                 if alg_findings:
                     result["vulnerabilities"].extend([v.__dict__ for v in alg_findings])
 
@@ -891,7 +909,7 @@ def _run_scan_in_background(
             advanced_findings = run_advanced_dynamic_checks(
                 base_url=str(api_url or result.get("dynamic_api_url") or ""),
                 endpoints=endpoint_details,
-                auth_headers=auth_headers,
+                auth_headers=session_headers,
                 cvss_map=APISecurityScanner.CVSS_BY_SEVERITY,
                 trivy_json_path=str(project_path) + "/trivy-results.json",
                 grype_json_path=str(project_path) + "/grype-results.json",
@@ -1421,7 +1439,7 @@ async def parse_api_collection_endpoint(
             status_code=400,
             detail={
                 "message": "No se pudieron extraer endpoints del JSON.",
-                "hint": "Formatos soportados: Postman Collection v2.1, OpenAPI 3.x, Swagger 2.0. "
+                "hint": "Formatos soportados: Postman Collection v2.1 (.json, .postman_collection), OpenAPI 3.x, Swagger 2.0. "
                 "Si el spec usa servers relativos o variables {{baseUrl}}, indica también api_url.",
             },
         )
@@ -1453,7 +1471,7 @@ async def scan_upload(
     auth_headers: Optional[str] = Form(None),
     run_advanced_checks: bool = Form(True),
     run_project_tests: bool = Form(False),
-    dynamic_http_max_per_endpoint: int = Form(10),
+    dynamic_http_max_per_endpoint: int = Form(0),
 ) -> dict:
     """
     Igual que POST /scan pero acepta JSON de ZAP/Burp como archivos (útil para reportes grandes).

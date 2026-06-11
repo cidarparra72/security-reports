@@ -9,6 +9,7 @@ import {
   endpointLikelyNeedsApiBase,
   dedupeApiEndpoints,
 } from "../hooks/useScan";
+import { API_COLLECTION_ACCEPT } from "../lib/collectionFileAccept";
 
 function endpointDisplayLine(ep) {
   const path = String(ep?.path || "").trim();
@@ -160,9 +161,7 @@ export function EndpointCollectionWorkbench({ scan }) {
       !(apiUrl || "").trim() &&
       endpointLikelyNeedsApiBase(activeRow.ep)
   );
-  const showNeedTokenA = Boolean(
-    apiEndpoints.length > 0 && runAdvancedChecks && !(authToken || "").trim()
-  );
+  const showTokenHint = Boolean(apiEndpoints.length > 0 && runAdvancedChecks);
 
   const busy = loading || sequentialScan.running;
   const canAnalyzeOne =
@@ -186,8 +185,12 @@ export function EndpointCollectionWorkbench({ scan }) {
     const keys = selectedKeysOrdered;
     if (!keys.length) return;
     setStatusForKeys(keys, "pending");
-    setStatusForKeys([keys[0]], "scanning");
-    const out = await handleScanSequential(keys, { postmanOnly: true });
+    const out = await handleScanSequential(keys, {
+      postmanOnly: true,
+      onItemComplete: (key, result) => {
+        setStatusForKeys([key], result?.ok ? "done" : "error");
+      },
+    });
     const results = Array.isArray(out?.results) ? out.results : [];
     setItemStatus((prev) => {
       const next = { ...prev };
@@ -252,21 +255,23 @@ export function EndpointCollectionWorkbench({ scan }) {
             Indica la <strong>URL base</strong> para el endpoint activo.
           </div>
         )}
-        {showNeedTokenA && (
+        {showTokenHint && (
           <p className="hint" role="note">
-            Sin token A no habrá JWT ni BOLA; el resto de checks avanzados puede ejecutarse.
+            Los tokens son <strong>opcionales</strong>: sin ellos corren TLS, cabeceras, métodos HTTP,
+            mass assignment, etc. Con <strong>token A</strong> se añaden JWT y <code>alg=none</code>; con{" "}
+            <strong>A+B</strong> también BOLA/IDOR automático.
           </p>
         )}
 
         <label className="file-drop file-drop-collection">
-          <span>Colección Postman v2.1 u OpenAPI (JSON)</span>
+          <span>Colección Postman v2.1 u OpenAPI</span>
           <input
             type="file"
-            accept=".json,application/json"
+            accept={API_COLLECTION_ACCEPT}
             disabled={busy}
             onChange={(e) => setApiCollectionFile(e.target.files?.[0] ?? null)}
           />
-          <small>{apiCollectionFile?.name || "Exporta desde Postman → Collection v2.1"}</small>
+          <small>{apiCollectionFile?.name || "Exporta desde Postman (.json o .postman_collection)"}</small>
         </label>
 
         <div className="endpoint-toolbar arm-endpoints">
@@ -412,7 +417,7 @@ export function EndpointCollectionWorkbench({ scan }) {
             disabled={busy}
           />
           <label htmlFor="ec-advanced">
-            Checks dinámicos avanzados (JWT, métodos HTTP, mass assignment, BOLA…)
+            Checks dinámicos avanzados (métodos HTTP, mass assignment, SSRF…; JWT/BOLA si hay tokens)
           </label>
         </div>
 
@@ -520,21 +525,22 @@ export function EndpointCollectionWorkbench({ scan }) {
 
         <div className="option-block">
           <div className="option-title">
-            <span>Usuario A y usuario B</span>
+            <span>Sesión API (opcional)</span>
           </div>
           <p className="hint" style={{ marginBottom: "0.75rem" }}>
-            <strong>A:</strong> JWT o sesión del API. <strong>B:</strong> segundo usuario para BOLA/IDOR
-            (pega los tokens a mano; no se lee el repositorio en este modo).
+            Podés analizar <strong>sin tokens</strong>. Si los pegás (Postman, login):{" "}
+            <strong>A</strong> habilita JWT y pruebas autenticadas; <strong>B</strong> añade BOLA/IDOR
+            entre dos cuentas.
           </p>
           <label className="field">
-            <span>Token usuario A</span>
+            <span>Token usuario A (opcional)</span>
             <input
               type="password"
               autoComplete="off"
               value={authToken}
               onChange={(e) => setAuthToken(e.target.value)}
               disabled={busy}
-              placeholder="eyJhbG…"
+              placeholder="eyJhbG… — vacío = sin sesión"
             />
           </label>
           <label className="field">

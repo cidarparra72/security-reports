@@ -1,5 +1,6 @@
 import { useRef } from "react";
 import { DEFAULT_CHECKS, LANGUAGE_OPTIONS, anyEndpointNeedsApiBase, CODE_ONLY_DEFAULT_CHECKS } from "../hooks/useScan";
+import { API_COLLECTION_ACCEPT, API_COLLECTION_HINT } from "../lib/collectionFileAccept";
 
 export function ScanForm({ scan, onSubmit, mode = "code", codeOnly = false }) {
   const {
@@ -14,7 +15,6 @@ export function ScanForm({ scan, onSubmit, mode = "code", codeOnly = false }) {
     toggleListValue, handleListApis, handleListEndpoints,
     toggleEndpoint, selectAllEndpoints, clearEndpoints, loadChecksCatalog,
     runAdvancedChecks, setRunAdvancedChecks,
-    dynamicHttpMaxPerEndpoint, setDynamicHttpMaxPerEndpoint,
     runProjectTests, setRunProjectTests,
     authToken, setAuthToken, secondToken, setSecondToken,
     authHeadersJson, setAuthHeadersJson,
@@ -239,9 +239,9 @@ export function ScanForm({ scan, onSubmit, mode = "code", codeOnly = false }) {
             </p>
             <label className="file-drop file-drop-collection">
               <span>Colección de APIs (Postman v2.1, OpenAPI 3, Swagger 2)</span>
-              <input type="file" accept=".json,application/json" disabled={loading}
+              <input type="file" accept={API_COLLECTION_ACCEPT} disabled={loading}
                 onChange={(e) => setApiCollectionFile(e.target.files?.[0] ?? null)} />
-              <small>{apiCollectionFile?.name || "Elige un .json exportado desde Postman o tu spec OpenAPI/Swagger"}</small>
+              <small>{apiCollectionFile?.name || `Elige ${API_COLLECTION_HINT}`}</small>
             </label>
             <div className="endpoint-toolbar arm-endpoints">
               <button
@@ -496,35 +496,6 @@ export function ScanForm({ scan, onSubmit, mode = "code", codeOnly = false }) {
           </div>
         </div>
 
-        {!codeOnly &&
-          (selectedChecks.includes("api_runtime_core") || runAdvancedChecks) && (
-          <div className="option-block http-limits-callout">
-            <div className="option-title"><span>Carga HTTP al API (límites)</span></div>
-            <p className="hint" style={{ marginTop: 0 }}>
-              <strong>Máx. peticiones por endpoint</strong>: al llegar al tope, el escáner deja de llamar a esa URL y pasa al siguiente. <strong>0</strong> = sin tope.
-            </p>
-            <div style={{ display: "flex", flexWrap: "wrap", gap: "12px", alignItems: "flex-end" }}>
-              <label className="field" style={{ minWidth: "200px" }}>
-                <span>Máx. peticiones por endpoint (0–100)</span>
-                <input
-                  type="number"
-                  min={0}
-                  max={100}
-                  value={dynamicHttpMaxPerEndpoint}
-                  onChange={(e) => {
-                    const v = e.target.value;
-                    const n = parseInt(v, 10);
-                    setDynamicHttpMaxPerEndpoint(
-                      v === "" ? 0 : Number.isFinite(n) ? Math.max(0, Math.min(100, n)) : 10
-                    );
-                  }}
-                  disabled={loading}
-                />
-              </label>
-            </div>
-          </div>
-        )}
-
         <div className="option-block">
           <div className="option-title"><span>Lenguajes</span></div>
           <div className="chip-grid compact">
@@ -568,16 +539,16 @@ export function ScanForm({ scan, onSubmit, mode = "code", codeOnly = false }) {
               También podés pegar el JWT a mano (Postman, login) o dejar vacío.
             </p>
             <label className="field">
-              <span>Token usuario A (principal)</span>
+              <span>Token usuario A (opcional)</span>
               <input type="password" autoComplete="off"
                 value={authToken} onChange={(e) => setAuthToken(e.target.value)}
-                disabled={loading} placeholder="eyJhbG… o Bearer eyJhbG…" />
+                disabled={loading} placeholder="eyJhbG… — vacío = sin sesión" />
             </label>
             <label className="field">
-              <span>Token usuario B (IDOR / BOLA)</span>
+              <span>Token usuario B (opcional, IDOR / BOLA)</span>
               <input type="password" autoComplete="off"
                 value={secondToken} onChange={(e) => setSecondToken(e.target.value)}
-                disabled={loading} placeholder="Opcional — segunda cuenta" />
+                disabled={loading} placeholder="Segunda cuenta — solo para BOLA/IDOR" />
             </label>
             <label className="field">
               <span>Cabeceras extra (JSON)</span>

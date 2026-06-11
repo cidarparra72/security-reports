@@ -28,10 +28,6 @@ client/node_modules/
 client/.next/
 client/out/
 
-# Runtime del scanner (opcional: quitar si quieres versionar la DB local)
-# scanner.db
-
-# Reportes generados (descomenta si no quieres subir artefactos)
-# reports/*.html
-# reports/*.pdf
-# reports/*.json
+# Runtime local (no subir a producción)
+scanner.db
+reports/
