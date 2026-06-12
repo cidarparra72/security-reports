@@ -25,6 +25,7 @@ export function ResultsPanel({
   zapBaselineInfo,
   selectedEndpoints,
   scanInsight,
+  codeOnly = false,
 }) {
   const [reportLoading, setReportLoading] = useState(false);
   const [reportUrl, setReportUrl] = useState("");
@@ -73,8 +74,15 @@ export function ResultsPanel({
       }
       const w = window.open(report.url, "_blank", "noopener,noreferrer");
       if (!w) {
+        const a = document.createElement("a");
+        a.href = report.url;
+        a.target = "_blank";
+        a.rel = "noopener noreferrer";
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
         setError(
-          "El navegador bloqueó la ventana emergente. Usa «Descargar HTML» o abre manualmente: " + report.url
+          "El navegador bloqueó la ventana emergente. Usa el enlace «Abrir reporte HTML» debajo o «Descargar HTML»."
         );
       }
     } catch (err) { setError(err?.message || String(err)); }
@@ -119,15 +127,18 @@ export function ResultsPanel({
   const zapHtmlHref =
     lastScanId && zapBaselineInfo?.html_report
       ? publicApiUrl(
-          `/scan/${lastScanId}/project-artifact/${encodeURIComponent(zapBaselineInfo.html_report)}`
+          `/scan/${lastScanId}/artifact/${encodeURIComponent(zapBaselineInfo.html_report)}`
         )
       : "";
   const zapJsonHref =
     lastScanId && zapBaselineInfo?.json_report
       ? publicApiUrl(
-          `/scan/${lastScanId}/project-artifact/${encodeURIComponent(zapBaselineInfo.json_report)}`
+          `/scan/${lastScanId}/artifact/${encodeURIComponent(zapBaselineInfo.json_report)}`
         )
       : "";
+
+  const jsMeta = scanInsight?.js_code_analysis_meta ?? null;
+  const jsMetaActive = jsMeta && jsMeta.enabled !== false;
 
   return (
     <section id="scan-results-panel" className="panel results-panel">
@@ -140,10 +151,21 @@ export function ResultsPanel({
       </div>
 
       <p className="hint" style={{ marginTop: 0 }}>
-        Aquí está el resumen del último análisis. Usa <strong>Ver HTML</strong> / <strong>Descargar PDF</strong> para el informe ejecutivo (incluye SAST, endpoints y hallazgos).
-        {zapBaselineInfo?.enabled
-          ? " Si activaste ZAP baseline, abajo tienes el informe nativo de ZAP."
-          : ""}
+        {codeOnly ? (
+          <>
+            Resumen del análisis de <strong>código</strong> (patrones SAST, análisis JS por función y herramientas externas).
+            La tabla inferior lista cada hallazgo con archivo, línea y función. Usa <strong>Ver HTML</strong> /{" "}
+            <strong>Descargar PDF</strong> para el informe completo.
+          </>
+        ) : (
+          <>
+            Aquí está el resumen del último análisis. Usa <strong>Ver HTML</strong> / <strong>Descargar PDF</strong> para el
+            informe ejecutivo (incluye SAST, endpoints y hallazgos).
+            {zapBaselineInfo?.enabled
+              ? " Si activaste ZAP baseline, abajo tienes el informe nativo de ZAP."
+              : ""}
+          </>
+        )}
       </p>
 
       {(zapBaselineInfo?.html_report || zapBaselineInfo?.json_report) && lastScanId && (
@@ -177,20 +199,27 @@ export function ResultsPanel({
       </div>
 
       <div className="meta-list">
-        <div>
-          <span>API dinámica</span>
-          <strong>
-            {dynamicInfo ? `${dynamicInfo.url}${dynamicInfo.inferred ? " (inferida)" : ""}` : "Sin ejecutar"}
-          </strong>
-        </div>
-        <div>
-          <span>Importaciones</span>
-          <strong>ZAP {externalImport?.zap ?? 0} / Burp {externalImport?.burp ?? 0} / Manual {externalImport?.manual ?? 0}</strong>
-        </div>
-        <div>
-          <span>ZAP baseline</span>
-          <strong>{zapBaselineInfo?.enabled ? "Ejecutado" : "No ejecutado"}</strong>
-        </div>
+        {!codeOnly && (
+          <>
+            <div>
+              <span>API dinámica</span>
+              <strong>
+                {dynamicInfo ? `${dynamicInfo.url}${dynamicInfo.inferred ? " (inferida)" : ""}` : "Sin ejecutar"}
+              </strong>
+            </div>
+            <div>
+              <span>Importaciones</span>
+              <strong>
+                ZAP {externalImport?.zap ?? 0} / Burp {externalImport?.burp ?? 0} / Manual{" "}
+                {externalImport?.manual ?? 0}
+              </strong>
+            </div>
+            <div>
+              <span>ZAP baseline</span>
+              <strong>{zapBaselineInfo?.enabled ? "Ejecutado" : "No ejecutado"}</strong>
+            </div>
+          </>
+        )}
         {scanInsight?.project_tests != null && (
           <div>
             <span>Tests del repo</span>
@@ -210,10 +239,12 @@ export function ResultsPanel({
             </strong>
           </div>
         )}
-        <div>
-          <span>Endpoints</span>
-          <strong>{selectedEndpoints.length} seleccionados para el análisis</strong>
-        </div>
+        {!codeOnly && (
+          <div>
+            <span>Endpoints</span>
+            <strong>{selectedEndpoints.length} seleccionados para el análisis</strong>
+          </div>
+        )}
         {scanInsight?.endpoint_report_meta?.report_lists_full_collection &&
           scanInsight.endpoint_report_meta.inventory_total != null && (
           <div>
@@ -237,6 +268,24 @@ export function ResultsPanel({
             )}
           </div>
         )}
+        {codeOnly && jsMeta && (
+          <div>
+            <span>Análisis JS por función</span>
+            <strong>
+              {jsMeta.enabled === false
+                ? "No ejecutado"
+                : `${jsMeta.functions_analyzed ?? 0} funciones en ${jsMeta.files_scanned ?? 0} archivos`}
+            </strong>
+            {jsMetaActive && (
+              <span className="hint" style={{ display: "block", marginTop: 4 }}>
+                {jsMeta.findings_count ?? 0} hallazgos del motor JS
+                {Array.isArray(jsMeta.function_names_sample) && jsMeta.function_names_sample.length > 0
+                  ? ` — ej.: ${jsMeta.function_names_sample.slice(0, 5).join(", ")}`
+                  : ""}
+              </span>
+            )}
+          </div>
+        )}
       </div>
 
       {scanInsight?.project_tests && typeof scanInsight.project_tests === "object" && (
@@ -253,30 +302,161 @@ export function ResultsPanel({
               ? ` — código salida ${scanInsight.project_tests.exit_code}`
               : ""}
           </p>
+          {scanInsight.project_tests.junit && typeof scanInsight.project_tests.junit === "object" ? (
+            <p className="hint" style={{ margin: "8px 0 0" }}>
+              <strong>JUnit:</strong> {scanInsight.project_tests.junit.tests ?? 0} tests —{" "}
+              {scanInsight.project_tests.junit.failures ?? 0} fallos,{" "}
+              {scanInsight.project_tests.junit.errors ?? 0} errores
+              {scanInsight.project_tests.junit.skipped != null
+                ? `, ${scanInsight.project_tests.junit.skipped} omitidos`
+                : ""}
+            </p>
+          ) : null}
           {scanInsight.project_tests.reason ? (
             <p className="hint" style={{ margin: "6px 0 0" }}>{String(scanInsight.project_tests.reason)}</p>
           ) : null}
-          {scanInsight.project_tests.stdout_tail ? (
-            <details style={{ marginTop: 10 }}>
-              <summary style={{ cursor: "pointer", fontSize: "0.88rem" }}>Ver salida (cola)</summary>
-              <pre
-                style={{
-                  marginTop: 8,
-                  maxHeight: 280,
-                  overflow: "auto",
-                  fontSize: "0.75rem",
-                  padding: "10px",
-                  background: "var(--panel-muted, #1a1d24)",
-                  borderRadius: 6,
-                  whiteSpace: "pre-wrap",
-                  wordBreak: "break-word",
-                }}
-              >
-                {scanInsight.project_tests.stdout_tail}
-              </pre>
-            </details>
-          ) : null}
+          {(() => {
+            const pt = scanInsight.project_tests;
+            const tail = String(pt.stdout_tail || "").trim();
+            const ju = pt.junit;
+            const fallback =
+              ju && typeof ju === "object"
+                ? [
+                    "=== Resumen JUnit ===",
+                    ju.path ? `Archivo: ${ju.path}` : "",
+                    `Tests: ${ju.tests ?? 0}`,
+                    `Failures: ${ju.failures ?? 0}`,
+                    `Errors: ${ju.errors ?? 0}`,
+                    ju.skipped != null ? `Skipped: ${ju.skipped}` : "",
+                    "",
+                    "(Sin salida de consola capturada; resumen desde junit.xml.)",
+                  ]
+                    .filter(Boolean)
+                    .join("\n")
+                : "";
+            const exitOk = pt.exit_code === 0 && String(pt.status || "") === "completed";
+            const minimal =
+              !tail && !fallback && exitOk
+                ? `Tests completados correctamente (código salida 0).\nDuración: ${pt.duration_sec ?? "—"} s.\n\nNo se capturó salida de consola (común con npm/jest en Windows).`
+                : "";
+            const text = tail || fallback || minimal;
+            if (!text) return null;
+            return (
+              <details open style={{ marginTop: 10 }}>
+                <summary style={{ cursor: "pointer", fontSize: "0.88rem" }}>Ver salida de tests</summary>
+                <pre className="test-output-pre">{text}</pre>
+              </details>
+            );
+          })()}
         </div>
+      )}
+
+      {codeOnly && jsMetaActive && (
+        <div className="analysis-box" style={{ marginTop: 14 }}>
+          <span>Análisis por función (JavaScript / TypeScript)</span>
+          <p className="hint" style={{ margin: "8px 0 0" }}>
+            Se extrajeron y revisaron{" "}
+            <strong>{jsMeta.functions_analyzed ?? 0}</strong> funciones en{" "}
+            <strong>{jsMeta.files_scanned ?? 0}</strong> archivos JS/TS.
+            {(jsMeta.api_functions_reviewed ?? 0) > 0 ? (
+              <>
+                {" "}
+                <strong>{jsMeta.api_functions_reviewed}</strong> funciones consumen API (
+                <strong>{jsMeta.api_functions_ok ?? 0}</strong> con auth detectada
+                {(jsMeta.api_functions_review ?? 0) > 0
+                  ? `, ${jsMeta.api_functions_review} a revisar`
+                  : ""}
+                ).
+              </>
+            ) : null}
+            {(jsMeta.findings_count ?? 0) === 0 ? (
+              <>
+                {" "}
+                Sin hallazgos de seguridad JS en esta corrida (código limpio o sin patrones de riesgo).
+              </>
+            ) : (
+              <>
+                {" "}
+                <strong>{jsMeta.findings_count}</strong> hallazgos del motor JS.
+              </>
+            )}
+          </p>
+          {Array.isArray(jsMeta.function_http_audit) && jsMeta.function_http_audit.length > 0 && (
+            <div style={{ marginTop: 12 }}>
+              <p className="eyebrow" style={{ marginBottom: 8 }}>Consumo de servicios (API)</p>
+              <div className="table-wrap">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>Función</th>
+                      <th>Archivo</th>
+                      <th>API</th>
+                      <th>Auth</th>
+                      <th>try/catch</th>
+                      <th>Validación</th>
+                      <th>Estado</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {jsMeta.function_http_audit.map((row, i) => (
+                      <tr key={`${row.file}-${row.function}-${i}`}>
+                        <td className="mono-cell">{row.function || "—"}</td>
+                        <td className="mono-cell">{row.file || "—"}</td>
+                        <td className="mono-cell" style={{ fontSize: "0.78rem" }}>
+                          {Array.isArray(row.api_calls) ? row.api_calls.join(", ") : "—"}
+                        </td>
+                        <td>{row.auth_in_function ? "Sí" : "No"}</td>
+                        <td>{row.has_try_catch || row.has_promise_catch ? "Sí" : "No"}</td>
+                        <td>{row.has_validation ? "Sí" : "No"}</td>
+                        <td style={{ fontSize: "0.82rem" }}>
+                          {row.status === "ok"
+                            ? "OK"
+                            : row.status === "partial"
+                              ? "Parcial"
+                              : row.status === "review"
+                                ? "Revisar"
+                                : row.status === "wrapper_impl"
+                                  ? "Wrapper"
+                                  : row.status || "—"}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+          {Array.isArray(jsMeta.function_names_sample) && jsMeta.function_names_sample.length > 0 && (
+            <details style={{ marginTop: 10 }}>
+              <summary style={{ cursor: "pointer", fontSize: "0.88rem" }}>
+                Otras funciones analizadas (muestra)
+              </summary>
+              <p className="mono-cell" style={{ fontSize: "0.78rem", marginTop: 8 }}>
+                {jsMeta.function_names_sample.join(", ")}
+              </p>
+            </details>
+          )}
+        </div>
+      )}
+      {codeOnly && scanInsight?.secrets_audit?.enabled && (
+        <div className="analysis-box" style={{ marginTop: 14, borderColor: scanInsight.secrets_audit.findings_count ? "#e8b4af" : "#cbe7d9" }}>
+          <span>Secretos y tokens en código</span>
+          <p className="hint" style={{ margin: "8px 0 0" }}>
+            {scanInsight.secrets_audit.status_message || "Auditoría de secretos completada."}
+          </p>
+          {(scanInsight.secrets_audit.findings_count ?? 0) > 0 && (
+            <p className="hint" style={{ margin: "6px 0 0", color: "#9a3b32" }}>
+              <strong>{scanInsight.secrets_audit.findings_count}</strong> posible(s) secreto(s) — ver sección en el informe HTML/PDF.
+            </p>
+          )}
+        </div>
+      )}
+
+      {codeOnly && lastScanId && !jsMeta && !loading && (
+        <p className="hint" style={{ marginTop: 12 }}>
+          Este escaneo no incluye metadatos de análisis JS (corrida anterior al motor por función). Vuelve a
+          analizar el repositorio.
+        </p>
       )}
 
       {scanInsight?.executive_summary?.recommended_actions?.length > 0 && (
@@ -290,24 +470,40 @@ export function ResultsPanel({
         </div>
       )}
 
-      {scanInsight?.external_checks_summary?.length > 0 && (
+      {scanInsight?.analysis_run_summary?.length > 0 && (
         <div style={{ marginTop: 14 }}>
-          <p className="eyebrow" style={{ marginBottom: 8 }}>Herramientas externas</p>
+          <p className="eyebrow" style={{ marginBottom: 8 }}>Resumen de análisis (OK / falló / omitido)</p>
           <div className="table-wrap">
             <table>
               <thead>
                 <tr>
-                  <th>Herramienta</th>
+                  <th>Análisis</th>
+                  <th>Resultado</th>
                   <th>Estado</th>
                   <th>Detalle</th>
                 </tr>
               </thead>
               <tbody>
-                {scanInsight.external_checks_summary.map((row) => (
+                {scanInsight.analysis_run_summary.map((row) => (
                   <tr key={row.id}>
-                    <td className="mono-cell">{row.id}</td>
-                    <td><span className={`severity-badge ${row.status === "completed" ? "low" : row.status === "skipped" ? "medium" : "high"}`}>{statusLabel(row.status)}</span></td>
-                    <td style={{ fontSize: "0.82rem" }}>{row.reason || "—"}</td>
+                    <td>{row.label || row.id}</td>
+                    <td>
+                      <span
+                        className={`severity-badge ${
+                          row.outcome === "ok"
+                            ? "low"
+                            : row.outcome === "skipped"
+                              ? "medium"
+                              : row.outcome === "warning"
+                                ? "medium"
+                                : "high"
+                        }`}
+                      >
+                        {row.outcome_label || row.outcome || "—"}
+                      </span>
+                    </td>
+                    <td>{statusLabel(row.status)}</td>
+                    <td style={{ fontSize: "0.82rem" }}>{row.detail || "—"}</td>
                   </tr>
                 ))}
               </tbody>

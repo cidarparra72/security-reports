@@ -155,7 +155,7 @@ def run_project_tests(project_path: str, timeout_sec: Optional[float] = None) ->
         if npm_bin is None:
             out["reason"] = "Hay package.json con script test pero `npm` no está en PATH."
             return out
-        cmd = [npm_bin, "test"]
+        cmd = [npm_bin, "test", "--", "--verbose", "--no-cache"]
         runner = "npm"
     elif _pytest_available(root):
         cmd = _pytest_cmd()
@@ -216,6 +216,17 @@ def run_project_tests(project_path: str, timeout_sec: Optional[float] = None) ->
         if bad > 0 and out["status"] == "completed":
             out["status"] = "failed"
             out["reason"] = out["reason"] or f"junit: {bad} fallos/errores"
+        if not (out.get("stdout_tail") or "").strip():
+            jp = str(junit.get("path") or "junit.xml")
+            out["stdout_tail"] = (
+                "=== Resumen JUnit ===\n"
+                f"Archivo: {jp}\n"
+                f"Tests: {junit.get('tests', 0)}\n"
+                f"Failures: {junit.get('failures', 0)}\n"
+                f"Errors: {junit.get('errors', 0)}\n"
+                f"Skipped: {junit.get('skipped', 0)}\n"
+                "\n(npm/jest no imprimió salida en consola; resultado desde junit.xml.)"
+            )
 
     # Línea tipo "Tests: 19 passed" desde la cola
     tail = out.get("stdout_tail") or ""

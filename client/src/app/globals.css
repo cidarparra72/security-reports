@@ -239,6 +239,12 @@ a:hover {
   align-items: stretch;
 }
 
+.home-grid--code-only {
+  grid-template-columns: 1fr;
+  max-width: 720px;
+  margin-inline: auto;
+}
+
 .home-grid--featured {
   grid-template-columns: minmax(300px, 0.9fr) minmax(300px, 1.1fr);
 }
@@ -1156,6 +1162,22 @@ h2 {
   margin: 7px 0 0;
   color: #344557;
   font-size: 0.88rem;
+}
+
+.test-output-pre {
+  margin-top: 8px;
+  max-height: 320px;
+  overflow: auto;
+  font-size: 0.78rem;
+  line-height: 1.45;
+  padding: 12px 14px;
+  color: #1a2332;
+  background: #f8fafc;
+  border: 1px solid #c6d2de;
+  border-radius: 8px;
+  white-space: pre-wrap;
+  word-break: break-word;
+  font-family: ui-monospace, "Cascadia Code", "Segoe UI Mono", Consolas, monospace;
 }
 
 .findings-panel {

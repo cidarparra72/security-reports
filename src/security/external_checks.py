@@ -36,8 +36,12 @@ def run_selected_external_checks(
     selected_checks: set[str],
     target_api_url: str | None,
     scan_id: int,
+    languages: list[str] | None = None,
+    artifacts_dir: str | Path | None = None,
 ) -> Dict[str, Any]:
     project = Path(project_path)
+    out_dir = Path(artifacts_dir).resolve() if artifacts_dir else project
+    out_dir.mkdir(parents=True, exist_ok=True)
     results: Dict[str, Any] = {}
     api_url = (target_api_url or "").strip()
 
@@ -47,7 +51,7 @@ def run_selected_external_checks(
         elif not _cmd_exists("schemathesis"):
             results["schemathesis"] = {"status": "skipped", "reason": "schemathesis_not_installed"}
         else:
-            report = project / f"scan-{scan_id}-schemathesis.json"
+            report = out_dir / f"scan-{scan_id}-schemathesis.json"
             code, out = _run(
                 [
                     "schemathesis",
@@ -75,7 +79,7 @@ def run_selected_external_checks(
         elif not _cmd_exists("nuclei"):
             results["nuclei"] = {"status": "skipped", "reason": "nuclei_not_installed"}
         else:
-            report = project / f"scan-{scan_id}-nuclei.json"
+            report = out_dir / f"scan-{scan_id}-nuclei.json"
             code, out = _run(
                 [
                     "nuclei",
@@ -98,23 +102,25 @@ def run_selected_external_checks(
         if not _cmd_exists("semgrep"):
             results["semgrep"] = {"status": "skipped", "reason": "semgrep_not_installed"}
         else:
-            report = project / f"scan-{scan_id}-semgrep.json"
-            code, out = _run(
-                ["semgrep", "scan", "--config", "auto", "--json", "--output", str(report), str(project)],
-                project,
-            )
+            from security.js_code_analysis import semgrep_config_args
+
+            report = out_dir / f"scan-{scan_id}-semgrep.json"
+            sg_configs = semgrep_config_args(languages)
+            cmd = ["semgrep", "scan", *sg_configs, "--json", "--output", str(report), str(project)]
+            code, out = _run(cmd, project)
             results["semgrep"] = {
                 "status": "completed" if code in (0, 1) else "failed",
                 "exit_code": code,
                 "output": out,
                 "report_file": str(report.name),
+                "configs": sg_configs,
             }
 
     if "trivy" in selected_checks:
         if not _cmd_exists("trivy"):
             results["trivy"] = {"status": "skipped", "reason": "trivy_not_installed"}
         else:
-            report = project / f"scan-{scan_id}-trivy.json"
+            report = out_dir / f"scan-{scan_id}-trivy.json"
             code, out = _run(
                 ["trivy", "fs", "--format", "json", "--output", str(report), str(project)],
                 project,
@@ -126,11 +132,20 @@ def run_selected_external_checks(
                 "report_file": str(report.name),
             }
 
+    if "eslint" in selected_checks:
+        from security.eslint_check import run_eslint_check
+
+        results["eslint"] = run_eslint_check(
+            str(project),
+            scan_id,
+            out_dir,
+        )
+
     if "grype" in selected_checks:
         if not _cmd_exists("grype"):
             results["grype"] = {"status": "skipped", "reason": "grype_not_installed"}
         else:
-            report = project / f"scan-{scan_id}-grype.json"
+            report = out_dir / f"scan-{scan_id}-grype.json"
             code, out = _run(
                 ["grype", "dir:" + str(project), "-o", "json"],
                 project,

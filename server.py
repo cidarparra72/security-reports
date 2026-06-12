@@ -383,6 +383,10 @@ class ScanRequest(BaseModel):
         le=100,
         description="Máx. peticiones HTTP dinámicas por URL de endpoint; 0 = sin tope.",
     )
+    code_only: bool = Field(
+        False,
+        description="Si true, solo SAST/repo: sin inferir URL ni pruebas HTTP dinámicas en el escáner base.",
+    )
 
 
 class ReportRequest(BaseModel):
@@ -528,6 +532,7 @@ def _build_executive_summary_block(
     selected: Set[str],
     external_rows: list[dict[str, Any]],
     endpoint_details: Optional[list[dict]] = None,
+    code_only: bool = False,
 ) -> dict[str, Any]:
     summary = result.get("summary") or {}
     total = int(result.get("total_vulnerabilities") or 0)
@@ -552,6 +557,12 @@ def _build_executive_summary_block(
     if summary.get("CRITICAL"):
         headline_parts.append(f"{int(summary['CRITICAL'])} críticos")
     actions: list[str] = []
+    secrets_n = int((result.get("secrets_audit") or {}).get("findings_count") or 0)
+    if secrets_n:
+        actions.insert(
+            0,
+            f"URGENTE: {secrets_n} secreto(s) o token(s) quemado(s) en código — rotar credenciales y ver sección del informe.",
+        )
     if summary.get("CRITICAL"):
         actions.append(
             "Priorizar remediación de hallazgos CRITICAL (secretos, inyección, auth rota)."
@@ -560,9 +571,13 @@ def _build_executive_summary_block(
         actions.append(
             "Planificar corrección de hallazgos HIGH (transporte, headers, exposición)."
         )
-    if not dyn and "dynamic_http_tls" in selected:
+    if not code_only and not dyn and "dynamic_http_tls" in selected:
         actions.append(
             "Indicar URL base del API o usar inferencia desde código para habilitar pruebas dinámicas HTTP/TLS."
+        )
+    if code_only and skipped:
+        actions.append(
+            "Instala Semgrep, Trivy o Grype en el servidor del escáner para ampliar cobertura SAST/dependencias."
         )
     ep_details = (
         endpoint_details
@@ -592,6 +607,23 @@ def _build_executive_summary_block(
         "openapi_specs_found": openapi_n,
         "recommended_actions": actions,
     }
+
+
+_DYNAMIC_CHECK_IDS = frozenset(
+    {"dynamic_http_tls", "api_runtime_core", "docs_exposure_probe"}
+)
+
+
+def _skip_dynamic_scan(
+    api_url: Optional[str],
+    selected: Set[str],
+    code_only: bool,
+) -> bool:
+    if code_only:
+        return True
+    if (api_url or "").strip():
+        return False
+    return not bool(selected & _DYNAMIC_CHECK_IDS)
 
 
 def _effective_auth_headers(
@@ -684,6 +716,7 @@ def _run_scan_in_background(
     collection_inventory_full: Optional[list[dict]] = None,
     run_project_tests: bool = False,
     dynamic_http_max_per_endpoint: int = 0,
+    code_only: bool = False,
 ) -> None:
     try:
         from security.http_probe_budget import HttpRequestBudget
@@ -703,6 +736,7 @@ def _run_scan_in_background(
         from security.external_checks import run_selected_external_checks
 
         selected = normalize_selected_checks(selected_checks)
+        skip_dynamic = _skip_dynamic_scan(api_url, selected, code_only)
         enabled_patterns = set()
         if "static_patterns" in selected:
             from security.checks_catalog import PATTERN_CHECKS
@@ -714,11 +748,17 @@ def _run_scan_in_background(
             target_api_url=api_url,
             enabled_pattern_ids=enabled_patterns,
             languages=languages,
+            skip_dynamic_checks=skip_dynamic,
         )
         with _scanner_print_silenced():
             result = scanner.scan()
+        result["code_only"] = bool(code_only)
+        scope = result.get("scan_scope")
+        if isinstance(scope, dict) and languages:
+            scope["languages"] = list(languages)
         run_zap = run_zap_baseline_enabled or ("zap_baseline" in selected)
         if run_zap:
+            os.makedirs(REPORTS_DIR, exist_ok=True)
             scan_prefix = f"scan-{scan_id}-zap-baseline"
             run_zap_baseline(
                 project_path=Path(project_path),
@@ -727,8 +767,9 @@ def _run_scan_in_background(
                 ignore_info=True,
                 html_report=f"{scan_prefix}.html",
                 json_report=f"{scan_prefix}.json",
+                work_dir=Path(REPORTS_DIR),
             )
-            zap_json_path = Path(project_path) / f"{scan_prefix}.json"
+            zap_json_path = Path(REPORTS_DIR) / f"{scan_prefix}.json"
             if zap_json_path.exists():
                 try:
                     with zap_json_path.open("r", encoding="utf-8") as f:
@@ -800,25 +841,85 @@ def _run_scan_in_background(
                 "html_report": f"scan-{scan_id}-zap-baseline.html",
                 "json_report": f"scan-{scan_id}-zap-baseline.json",
             }
+        os.makedirs(REPORTS_DIR, exist_ok=True)
         external_runs = run_selected_external_checks(
             project_path=project_path,
             selected_checks=selected,
             target_api_url=api_url or result.get("dynamic_api_url"),
             scan_id=scan_id,
+            languages=languages,
+            artifacts_dir=REPORTS_DIR,
         )
         if external_runs:
             result["external_checks"] = external_runs
+
+        if "js_code_analysis" in selected:
+            from dataclasses import asdict
+
+            from security.js_code_analysis import run_js_code_analysis
+
+            js_findings, js_meta = run_js_code_analysis(
+                project_path,
+                languages,
+                APISecurityScanner.CVSS_BY_SEVERITY,
+            )
+            result["js_code_analysis_meta"] = js_meta
+            result["function_http_audit"] = js_meta.get("function_http_audit") or []
+            ext_js = list(result.get("external_checks_summary") or [])
+            ext_js.append(
+                {
+                    "id": "js_code_analysis",
+                    "status": "completed" if js_meta.get("enabled", True) else "skipped",
+                    "reason": (
+                        f"{js_meta.get('functions_analyzed', 0)} funciones en "
+                        f"{js_meta.get('files_scanned', 0)} archivos JS/TS; "
+                        f"{js_meta.get('api_functions_reviewed', 0)} con llamadas API revisadas; "
+                        f"{js_meta.get('findings_count', 0)} hallazgos"
+                        + (
+                            f"; {js_meta.get('hygiene_findings_count', 0)} calidad/linter"
+                            if js_meta.get("hygiene_findings_count")
+                            else ""
+                        )
+                    )[:500],
+                }
+            )
+            result["external_checks_summary"] = ext_js
+            if js_findings:
+                result["vulnerabilities"].extend([asdict(v) for v in js_findings])
+                summary = result.get("summary", {}) or {}
+                for sev in ("CRITICAL", "HIGH", "MEDIUM", "LOW"):
+                    summary[sev] = 0
+                for v in result.get("vulnerabilities", []):
+                    s = str(v.get("severity", "")).upper()
+                    if s in summary:
+                        summary[s] += 1
+                result["summary"] = summary
+                result["total_vulnerabilities"] = len(result.get("vulnerabilities", []))
+        elif code_only:
+            result["js_code_analysis_meta"] = {
+                "enabled": False,
+                "reason": "Check js_code_analysis no seleccionado",
+            }
 
         result["openapi_specs"] = discover_openapi_specs(Path(project_path))
         ext_summary = _external_checks_summary_rows(
             external_runs if isinstance(external_runs, dict) else None
         )
-        result["external_checks_summary"] = ext_summary
+        merged_ext: dict[str, dict[str, Any]] = {}
+        for row in result.get("external_checks_summary") or []:
+            if isinstance(row, dict) and row.get("id"):
+                merged_ext[str(row["id"])] = row
+        for row in ext_summary:
+            merged_ext[str(row["id"])] = row
+        result["external_checks_summary"] = sorted(
+            merged_ext.values(), key=lambda x: str(x.get("id", ""))
+        )
 
         merged_tool_counts = merge_external_scan_tool_reports(
             result,
             project_path,
             external_runs if isinstance(external_runs, dict) else None,
+            artifacts_dir=REPORTS_DIR,
         )
         if merged_tool_counts:
             result["external_tool_findings_merged"] = merged_tool_counts
@@ -930,14 +1031,34 @@ def _run_scan_in_background(
             result["summary"] = summary
             result["total_vulnerabilities"] = len(result.get("vulnerabilities", []))
 
+        if code_only or "static_patterns" in selected:
+            from dataclasses import asdict as _asdict_sec
+
+            from security.secrets_audit import run_secrets_audit
+
+            secret_vulns, secrets_meta = run_secrets_audit(
+                project_path,
+                languages,
+                APISecurityScanner.CVSS_BY_SEVERITY,
+            )
+            result["secrets_audit"] = secrets_meta
+            if secret_vulns:
+                result["vulnerabilities"].extend(
+                    [_asdict_sec(v) for v in secret_vulns]
+                )
+
         inv = (
             [x for x in (collection_inventory_full or []) if isinstance(x, dict)]
             if collection_inventory_full
             else []
         )
-        vulns_final = filter_vulnerabilities_for_report(
-            [x for x in result.get("vulnerabilities", []) if isinstance(x, dict)]
+        from security.js_code_analysis import enrich_vulnerabilities_with_function_names
+
+        vulns_raw = [x for x in result.get("vulnerabilities", []) if isinstance(x, dict)]
+        enrich_vulnerabilities_with_function_names(
+            vulns_raw, Path(project_path), languages
         )
+        vulns_final = filter_vulnerabilities_for_report(vulns_raw)
         result["vulnerabilities"] = vulns_final
         summary_f, total_f = recalculate_summary(vulns_final)
         result["summary"] = summary_f
@@ -970,6 +1091,7 @@ def _run_scan_in_background(
             selected,
             result.get("external_checks_summary") or [],
             endpoint_details,
+            code_only=bool(code_only),
         )
         pt = result.get("project_tests")
         if isinstance(pt, dict) and pt.get("status") in ("failed", "timeout"):
@@ -1001,7 +1123,6 @@ def _run_scan_in_background(
                 {
                     "name": str(result["zap_baseline"]["json_report"]),
                     "kind": "zap_baseline_json",
-                    "location": "project_path",
                 }
             )
             html_name = result["zap_baseline"].get("html_report")
@@ -1010,7 +1131,6 @@ def _run_scan_in_background(
                     {
                         "name": str(html_name),
                         "kind": "zap_baseline_html",
-                        "location": "project_path",
                     }
                 )
         if uploaded_zap_json_file:
@@ -1024,7 +1144,6 @@ def _run_scan_in_background(
                         {
                             "name": str(check_data["report_file"]),
                             "kind": f"{check_id}_json",
-                            "location": "project_path",
                         }
                     )
         if result.get("dynamic_api_url"):
@@ -1032,6 +1151,12 @@ def _run_scan_in_background(
             artifacts.append({"name": f"{base}/swagger.json", "kind": "swagger_url", "location": "url"})
 
         result["artifacts"] = artifacts
+
+        from security.analysis_run_summary import build_analysis_run_summary
+
+        result["analysis_run_summary"] = build_analysis_run_summary(
+            result, selected, bool(code_only)
+        )
 
         result["retest_diff"] = _compute_retest_diff(scan_id, project_path, result)
         result["technical_annex"] = {
@@ -1118,6 +1243,7 @@ def scan(req: ScanRequest, background_tasks: BackgroundTasks, _key: None = Depen
         None,
         req.run_project_tests,
         req.dynamic_http_max_per_endpoint,
+        req.code_only,
     )
     return {"scan_id": scan_id, "status": "pending"}
 
@@ -1472,6 +1598,7 @@ async def scan_upload(
     run_advanced_checks: bool = Form(True),
     run_project_tests: bool = Form(False),
     dynamic_http_max_per_endpoint: int = Form(0),
+    code_only: bool = Form(False),
 ) -> dict:
     """
     Igual que POST /scan pero acepta JSON de ZAP/Burp como archivos (útil para reportes grandes).
@@ -1631,6 +1758,7 @@ async def scan_upload(
         collection_inventory_full_arg,
         run_project_tests,
         rl_max_http,
+        code_only,
     )
     return {"scan_id": scan_id, "status": "pending"}
 
@@ -1760,7 +1888,9 @@ def download_scan_artifact(scan_id: int, filename: str):
     path = os.path.join(REPORTS_DIR, safe)
     if not os.path.exists(path):
         raise HTTPException(status_code=404, detail="Artifact not found")
-    return FileResponse(path, media_type="application/json", filename=safe)
+    guessed, _ = mimetypes.guess_type(safe)
+    media = guessed or "application/octet-stream"
+    return FileResponse(path, media_type=media, filename=safe)
 
 
 @app.get("/scan/{scan_id}/project-artifact/{filename:path}")
@@ -1771,11 +1901,15 @@ def download_project_artifact(scan_id: int, filename: str):
         raise HTTPException(status_code=404, detail="Scan not found") from None
     project_path = str(row.get("path") or "")
     safe_name = os.path.basename(filename)
-    target = os.path.abspath(os.path.join(project_path, safe_name))
-    if not target.startswith(os.path.abspath(project_path)):
-        raise HTTPException(status_code=400, detail="Invalid path")
-    if not os.path.exists(target):
-        raise HTTPException(status_code=404, detail="Artifact not found")
+    reports_target = os.path.join(REPORTS_DIR, safe_name)
+    if os.path.exists(reports_target):
+        target = reports_target
+    else:
+        target = os.path.abspath(os.path.join(project_path, safe_name))
+        if not target.startswith(os.path.abspath(project_path)):
+            raise HTTPException(status_code=400, detail="Invalid path")
+        if not os.path.exists(target):
+            raise HTTPException(status_code=404, detail="Artifact not found")
     guessed, _ = mimetypes.guess_type(safe_name)
     media = guessed or "application/octet-stream"
     return FileResponse(target, media_type=media, filename=safe_name)

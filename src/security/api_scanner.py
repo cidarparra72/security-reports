@@ -20,7 +20,12 @@ from .infer_api_url import (
     _SKIP_INFER_FILE_NAMES_LOWER,
     infer_primary_api_url,
 )
-from .scan_scope import extensions_for_languages, is_finding_suppressed, load_suppressions
+from .scan_scope import (
+    extensions_for_languages,
+    is_finding_suppressed,
+    is_scan_artifact_filename,
+    load_suppressions,
+)
 
 
 @dataclass
@@ -38,6 +43,7 @@ class Vulnerability:
     confidence: str
     false_positive_note: str = ""
     pattern_id: str = field(default="", repr=False)
+    function_name: str = ""
 
 
 @dataclass(frozen=True)
@@ -113,7 +119,7 @@ def _build_rules() -> List[_PatternRule]:
             cwe_id="CWE-532",
             recommendation="No registres contraseñas ni tokens; usa enmascaramiento o niveles de log seguros.",
             regex=re.compile(
-                r"console\.(log|debug|info)\s*\([^)]*(password|token|secret)[^)]*\)",
+                r"console\.(log|debug|info)\s*\([^)]{0,400}(password|token|secret)[^)]{0,400}\)",
                 re.IGNORECASE,
             ),
         ),
@@ -217,11 +223,13 @@ class APISecurityScanner:
         target_api_url: Optional[str] = None,
         enabled_pattern_ids: Optional[Set[str]] = None,
         languages: Optional[List[str]] = None,
+        skip_dynamic_checks: bool = False,
     ) -> None:
         self.project_path = str(Path(project_path).expanduser())
         self.target_api_url = (target_api_url or "").strip() or None
         self.enabled_pattern_ids: Optional[Set[str]] = enabled_pattern_ids
         self.languages = languages
+        self.skip_dynamic_checks = bool(skip_dynamic_checks)
 
     def scan(self) -> Dict[str, Any]:
         root = Path(self.project_path).expanduser().resolve()
@@ -249,6 +257,14 @@ class APISecurityScanner:
                 except OSError:
                     continue
                 for line_no, line in enumerate(text.splitlines(), 1):
+                    stripped = line.strip()
+                    if (
+                        stripped.startswith("//")
+                        or stripped.startswith("*")
+                        or stripped.startswith("<!--")
+                        or stripped.startswith("#")
+                    ):
+                        continue
                     for rule in rules:
                         for m in rule.regex.finditer(line):
                             snippet = (m.group(0) or "")[:400]
@@ -291,11 +307,13 @@ class APISecurityScanner:
                                 continue
                             vulns.append(v)
 
-        dynamic_url = self.target_api_url
+        dynamic_url: Optional[str] = None
         inferred = False
-        if not dynamic_url and root.is_dir():
-            dynamic_url = infer_primary_api_url(root)
-            inferred = bool(dynamic_url)
+        if not self.skip_dynamic_checks:
+            dynamic_url = self.target_api_url
+            if not dynamic_url and root.is_dir():
+                dynamic_url = infer_primary_api_url(root)
+                inferred = bool(dynamic_url)
 
         if dynamic_url:
             from .dynamic_checks import run_dynamic_api_checks
@@ -362,6 +380,8 @@ def _iter_scan_files(project_path: Path, languages: Optional[List[str]]) -> List
         if any(part in skip for part in p.parts):
             continue
         if p.name.lower() in _SKIP_INFER_FILE_NAMES_LOWER:
+            continue
+        if is_scan_artifact_filename(p.name):
             continue
         suf = p.suffix.lower()
         if suf not in exts and not p.name.endswith((".axml", ".acss")):

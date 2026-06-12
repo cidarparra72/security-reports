@@ -46,6 +46,8 @@ export const DEFAULT_CHECKS = [
 /** Checks que corren solo sobre el árbol del repo (sin URL de API). SAST + dependencias/IaC. */
 export const CODE_ONLY_DEFAULT_CHECKS = [
   "static_patterns",
+  "js_code_analysis",
+  "eslint",
   "semgrep",
   "trivy",
   "grype",
@@ -170,7 +172,13 @@ export async function errorMessage(res) {
         .map((x) => (typeof x === "object" && x != null ? x.msg || JSON.stringify(x) : String(x)))
         .join("; ");
     }
-    if (d && typeof d === "object" && d.message) return String(d.message);
+    if (d && typeof d === "object") {
+      const msg = d.message ? String(d.message) : "";
+      const err = d.error ? String(d.error) : "";
+      if (msg && err) return `${msg}: ${err}`;
+      if (msg) return msg;
+      if (err) return err;
+    }
     if (d != null) return JSON.stringify(d);
     return res.statusText;
   } catch {
@@ -190,6 +198,85 @@ export function summarizeBySeverity(items) {
     if (base[sev] != null) base[sev] += 1;
   }
   return base;
+}
+
+const SEVERITY_SORT = { CRITICAL: 0, HIGH: 1, MEDIUM: 2, LOW: 3 };
+
+function isSyntheticSourceFile(file) {
+  const f = String(file || "");
+  return f.startsWith("<dynamic") || f === "<external:tool>";
+}
+
+function sourceLabelForVuln(v) {
+  const file = String(v?.file || "");
+  const cat = String(v?.category || "");
+  if (/Secretos|Tokens en código/i.test(cat)) return "Secretos";
+  if (/JavaScript/i.test(cat)) return "Análisis JS";
+  if (/Semgrep/i.test(cat)) return "Semgrep";
+  if (/Trivy/i.test(cat)) return "Trivy";
+  if (/Grype/i.test(cat)) return "Grype";
+  if (/Nuclei/i.test(cat)) return "Nuclei";
+  if (file.startsWith("<dynamic:advanced>")) return "Dinámico avanzado";
+  if (file.startsWith("<dynamic:bola>")) return "BOLA";
+  if (file === "<dynamic:api>") return "API dinámico";
+  if (file === "<external:tool>") return "Herramienta externa";
+  return "Patrones SAST";
+}
+
+/** Hallazgos de análisis de código: todas las vulnerabilidades del resultado del scan. */
+export function buildCodeFindings(result) {
+  const raw = Array.isArray(result?.vulnerabilities) ? result.vulnerabilities : [];
+  const seen = new Set();
+  const out = [];
+  for (const v of raw) {
+    if (!v || typeof v !== "object") continue;
+    const sev = String(v.severity || "MEDIUM").toUpperCase();
+    const title = String(v.title || "Hallazgo");
+    const file = String(v.file || "");
+    const line = v.line ?? 0;
+    const snippet = String(v.code_snippet || "").slice(0, 240);
+    const dedupe = `${file}|${line}|${sev}|${title}|${snippet.slice(0, 80)}`;
+    if (seen.has(dedupe)) continue;
+    seen.add(dedupe);
+    const synthetic = isSyntheticSourceFile(file);
+    const funcName = String(v.function_name || "").trim();
+    out.push({
+      severity: sev,
+      title,
+      category: String(v.category || ""),
+      recommendation: String(v.recommendation || ""),
+      confidence: String(v.confidence || "medium"),
+      file: synthetic ? "" : file,
+      line: synthetic || line === 0 || line === "" ? "" : String(line),
+      function_name: funcName,
+      code_snippet: snippet,
+      source: sourceLabelForVuln(v),
+      endpoint: synthetic ? file.replace(/^<|>$/g, "") : "",
+      api_url: "",
+      cwe_id: String(v.cwe_id || ""),
+      false_positive_note: String(v.false_positive_note || ""),
+    });
+  }
+  out.sort(
+    (a, b) =>
+      (SEVERITY_SORT[a.severity] ?? 9) - (SEVERITY_SORT[b.severity] ?? 9) ||
+      String(a.file).localeCompare(String(b.file)) ||
+      Number(a.line || 0) - Number(b.line || 0)
+  );
+  return out;
+}
+
+export function normalizeSummaryFromResult(result) {
+  const summary = result?.summary;
+  if (summary && typeof summary === "object") {
+    return {
+      CRITICAL: Number(summary.CRITICAL) || 0,
+      HIGH: Number(summary.HIGH) || 0,
+      MEDIUM: Number(summary.MEDIUM) || 0,
+      LOW: Number(summary.LOW) || 0,
+    };
+  }
+  return summarizeBySeverity(result?.vulnerabilities);
 }
 
 export function buildApiFindings(result) {
@@ -495,6 +582,7 @@ export function useScan() {
     const sequentialPart = Boolean(options.sequentialPart);
     const skipResetResults = Boolean(options.skipResetResults);
     const postmanOnly = Boolean(options.postmanOnly);
+    const codeOnly = Boolean(options.codeOnly);
     const keysOverride = Array.isArray(options.endpointKeys)
       ? options.endpointKeys.filter((k) => typeof k === "string" && k.trim())
       : null;
@@ -569,6 +657,7 @@ export function useScan() {
         fd.append("run_advanced_checks", String(runAdvancedChecks));
         fd.append("run_project_tests", String(runProjectTests));
         fd.append("dynamic_http_max_per_endpoint", "0");
+        fd.append("code_only", String(codeOnly));
         if (zapFile) fd.append("zap_file", zapFile);
         if (burpFile) fd.append("burp_file", burpFile);
         if (apiCollectionFile) fd.append("api_collection_file", apiCollectionFile);
@@ -583,6 +672,7 @@ export function useScan() {
           run_advanced_checks: runAdvancedChecks,
           run_project_tests: runProjectTests,
           dynamic_http_max_per_endpoint: 0,
+          code_only: codeOnly,
         };
         if (authHeadersDict) payload.auth_headers = authHeadersDict;
         if (trimmedApi) payload.api_url = trimmedApi;
@@ -602,11 +692,12 @@ export function useScan() {
       if (!data || data.status !== "completed") throw new Error("El scan tardó demasiado.");
 
       const result = data.result ?? {};
-      const apiFindings = buildApiFindings(result);
-      setSummary(summarizeBySeverity(apiFindings));
-      setRows(apiFindings);
+      const isCodeScan = codeOnly || Boolean(result.code_only);
+      const findings = isCodeScan ? buildCodeFindings(result) : buildApiFindings(result);
+      setSummary(normalizeSummaryFromResult(result));
+      setRows(findings);
       setDynamicInfo(
-        result.dynamic_api_url
+        !isCodeScan && result.dynamic_api_url
           ? { url: result.dynamic_api_url, inferred: Boolean(result.dynamic_api_inferred) }
           : null
       );
@@ -614,6 +705,11 @@ export function useScan() {
       setZapBaselineInfo(result.zap_baseline ?? null);
       setScanInsight({
         scan_scope: result.scan_scope ?? null,
+        js_code_analysis_meta: result.js_code_analysis_meta ?? null,
+        secrets_audit: result.secrets_audit ?? null,
+        analysis_run_summary: Array.isArray(result.analysis_run_summary)
+          ? result.analysis_run_summary
+          : [],
         executive_summary: result.executive_summary ?? null,
         external_checks_summary: Array.isArray(result.external_checks_summary)
           ? result.external_checks_summary

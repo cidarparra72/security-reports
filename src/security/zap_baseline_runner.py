@@ -177,6 +177,7 @@ def run_zap_baseline(
     html_report: str = "zap-baseline.html",
     json_report: str = "zap-baseline.json",
     image: str = "owasp/zap2docker-stable",
+    work_dir: Optional[Path] = None,
 ) -> int:
     project_path = project_path.resolve()
     if not project_path.is_dir():
@@ -192,11 +193,15 @@ def run_zap_baseline(
         print(f"ERROR: Invalid API URL: {api_url}")
         return 2
 
+    out_dir = (work_dir or project_path).resolve()
+    out_dir.mkdir(parents=True, exist_ok=True)
+
     print(f"API URL selected: {api_url}")
     print(f"Running ZAP baseline Docker image: {image}")
+    print(f"Report output dir: {out_dir}")
 
     return run_zap_baseline_target(
-        project_path,
+        out_dir,
         api_url,
         spider_minutes=spider_minutes,
         ignore_info=ignore_info,

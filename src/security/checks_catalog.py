@@ -34,6 +34,18 @@ CHECKS: List[Dict[str, Any]] = [
         "pattern_ids": PATTERN_CHECKS,
     },
     {
+        "id": "js_code_analysis",
+        "name": "JavaScript/TypeScript Deep Analysis",
+        "type": "internal",
+        "supports_languages": ["javascript", "typescript"],
+    },
+    {
+        "id": "eslint",
+        "name": "ESLint (reglas del proyecto)",
+        "type": "external",
+        "supports_languages": ["javascript", "typescript"],
+    },
+    {
         "id": "dynamic_http_tls",
         "name": "Dynamic HTTP/TLS/CORS Checks",
         "type": "internal",

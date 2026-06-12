@@ -30,6 +30,30 @@ from reportlab.platypus import PageBreak, Paragraph, SimpleDocTemplate, Spacer, 
 # Resolve templates directory relative to this file
 _TEMPLATES_DIR = Path(__file__).parent / "templates"
 
+_PROJECT_DISPLAY_NAMES = {
+    "dt.claro.miniprogram.tullave_mass": "TuLlave",
+    "tullave_mass": "TuLlave",
+}
+
+
+def display_project_name(raw: str) -> str:
+    """Nombre legible para el informe (p. ej. carpeta del repo → TuLlave)."""
+    name = (raw or "").strip()
+    if not name:
+        return name
+    folder = Path(name).name if ("/" in name or "\\" in name) else name
+    key = folder.lower()
+    if key in _PROJECT_DISPLAY_NAMES:
+        return _PROJECT_DISPLAY_NAMES[key]
+    if "tullave" in key:
+        return "TuLlave"
+    for prefix in ("DT.Claro.Miniprogram.", "dt.claro.miniprogram."):
+        if folder.startswith(prefix):
+            folder = folder[len(prefix) :]
+    if folder.endswith("_Mass"):
+        folder = folder[: -len("_Mass")]
+    return folder or name
+
 
 @dataclass
 class VulnerabilityReport:
@@ -57,7 +81,7 @@ class EthicalHackingReportGenerator:
     SEVERITY_ORDER = {"CRITICAL": 0, "HIGH": 1, "MEDIUM": 2, "LOW": 3}
 
     def __init__(self, project_name: str, target_url: str = ""):
-        self.project_name = project_name
+        self.project_name = display_project_name(project_name)
         self.target_url = target_url
         self.vulnerabilities: List[VulnerabilityReport] = []
         self.scan_date = datetime.now()
@@ -70,6 +94,9 @@ class EthicalHackingReportGenerator:
         self.external_checks_summary: List[Dict[str, Any]] = []
         self.scan_scope: Dict[str, Any] = {}
         self.endpoint_report_meta: Dict[str, Any] = {}
+        self.secrets_audit: Dict[str, Any] = {}
+        self.analysis_run_summary: List[Dict[str, Any]] = []
+        self.js_code_analysis_meta: Dict[str, Any] = {}
 
     def add_vulnerability(self, vuln: VulnerabilityReport):
         self.vulnerabilities.append(vuln)
@@ -208,6 +235,12 @@ class EthicalHackingReportGenerator:
         self.scan_scope = data.get("scan_scope", {}) or {}
         erm = data.get("endpoint_report_meta")
         self.endpoint_report_meta = erm if isinstance(erm, dict) else {}
+        sa = data.get("secrets_audit")
+        self.secrets_audit = sa if isinstance(sa, dict) else {}
+        ars = data.get("analysis_run_summary")
+        self.analysis_run_summary = ars if isinstance(ars, list) else []
+        jm = data.get("js_code_analysis_meta")
+        self.js_code_analysis_meta = jm if isinstance(jm, dict) else {}
 
         if not self.target_url:
             self.target_url = data.get("dynamic_api_url", "") or self.target_url
@@ -232,6 +265,7 @@ class EthicalHackingReportGenerator:
                     status = desc.split("Estado retest:", 1)[1].strip().split("|")[0].strip()
 
             poc_text = str(v.get("code_snippet", ""))
+            fn_name = str(v.get("function_name", "")).strip()
             impact = self._impact_text(
                 str(v.get("title", "")),
                 str(v.get("category", "")),
@@ -244,6 +278,18 @@ class EthicalHackingReportGenerator:
                 cvss = float(v.get("cvss", self._severity_to_cvss(sev)))
             except (TypeError, ValueError):
                 cvss = self._severity_to_cvss(sev)
+
+            repro_steps = [
+                f"Revisar archivo: {file_p}" + (f" (línea {line})" if line not in (None, "", "N/A") else ""),
+            ]
+            if fn_name:
+                repro_steps.append(f"Función o método: {fn_name}")
+            repro_steps.extend(
+                [
+                    "Confirmar en el repositorio con búsqueda o IDE (contexto ampliado en el bloque de código del hallazgo).",
+                    "Validar con request/replay controlado o prueba unitaria de seguridad si aplica.",
+                ]
+            )
 
             vuln = VulnerabilityReport(
                 id=file_p.replace("/", "_").replace(".", "_") + f"_{line}",
@@ -258,11 +304,7 @@ class EthicalHackingReportGenerator:
                 impact=impact,
                 cvss_vector=str(v.get("cvss_vector", "")),
                 poc=poc_text,
-                steps_to_reproduce=[
-                    f"Revisar archivo: {file_p}" + (f" (línea {line})" if line not in (None, "", "N/A") else ""),
-                    "Confirmar en el repositorio con búsqueda o IDE (contexto ampliado en el bloque de código del hallazgo).",
-                    "Validar con request/replay controlado o prueba unitaria de seguridad si aplica.",
-                ],
+                steps_to_reproduce=repro_steps,
                 evidence=poc_text,
                 cwe_id=cwe_id,
                 references=self._default_references(cwe_id),
@@ -346,8 +388,11 @@ class EthicalHackingReportGenerator:
 
     def generate_html(self, output_file: str):
         """Render the HTML report using the Jinja2 template."""
+        from ._fix_template_utf8 import ensure_report_template_utf8
+
+        ensure_report_template_utf8(_TEMPLATES_DIR / "report.html")
         env = Environment(
-            loader=FileSystemLoader(str(_TEMPLATES_DIR)),
+            loader=FileSystemLoader(str(_TEMPLATES_DIR), encoding="utf-8"),
             autoescape=select_autoescape(["html", "xml"]),
         )
         template = env.get_template("report.html")
@@ -376,6 +421,9 @@ class EthicalHackingReportGenerator:
             "external_checks_summary": self.external_checks_summary,
             "scan_scope": self.scan_scope,
             "endpoint_report_meta": self.endpoint_report_meta,
+            "secrets_audit": self.secrets_audit,
+            "analysis_run_summary": self.analysis_run_summary,
+            "js_code_analysis_meta": self.js_code_analysis_meta,
         }
 
         html = template.render(**context)
@@ -524,7 +572,7 @@ class EthicalHackingReportGenerator:
         story: List[Any] = []
         scan_label = self.scan_date.strftime("%d/%m/%Y %H:%M UTC")
 
-        story.append(Paragraph("RETEST ETHICAL HACKING", styles["Title"]))
+        story.append(Paragraph("RETESTS", styles["Title"]))
         story.append(
             Paragraph(
                 f"Proyecto: {escape(self.project_name)} | Fecha: {escape(scan_label)} | v{escape(self.version)}",
@@ -578,6 +626,118 @@ class EthicalHackingReportGenerator:
                             small_style,
                         )
                     )
+
+        ars = self.analysis_run_summary or []
+        story.append(Spacer(1, 10))
+        story.append(Paragraph("3.9 Resumen de analisis ejecutados", styles["Heading2"]))
+        if ars:
+            ar_table: List[List[Any]] = [
+                [
+                    Paragraph("<b>Analisis</b>", cell_style),
+                    Paragraph("<b>Resultado</b>", cell_style),
+                    Paragraph("<b>Estado</b>", cell_style),
+                    Paragraph("<b>Detalle</b>", cell_style),
+                ]
+            ]
+            for row in ars[:20]:
+                if not isinstance(row, dict):
+                    continue
+                ar_table.append(
+                    [
+                        self._pdf_cell(row.get("label", row.get("id", "")), cell_style),
+                        self._pdf_cell(row.get("outcome_label", ""), cell_style),
+                        self._pdf_cell(row.get("status", ""), cell_style),
+                        self._pdf_cell(row.get("detail", ""), cell_style),
+                    ]
+                )
+            ar_t = Table(ar_table, colWidths=[100, 48, 52, 220], repeatRows=1)
+            ar_t.setStyle(self._pdf_table_style())
+            story.append(ar_t)
+        else:
+            story.append(Paragraph("Sin resumen de corridas en este escaneo.", body_style))
+
+        jm = self.js_code_analysis_meta or {}
+        svc_rows = jm.get("function_http_audit") or []
+        if svc_rows:
+            story.append(Spacer(1, 10))
+            story.append(Paragraph("3.10 Consumo de servicios (API) por funcion", styles["Heading2"]))
+            svc_table: List[List[Any]] = [
+                [
+                    Paragraph("<b>Funcion</b>", cell_style),
+                    Paragraph("<b>Archivo</b>", cell_style),
+                    Paragraph("<b>Auth</b>", cell_style),
+                    Paragraph("<b>try/catch</b>", cell_style),
+                    Paragraph("<b>Valid.</b>", cell_style),
+                    Paragraph("<b>Estado</b>", cell_style),
+                ]
+            ]
+            for row in svc_rows[:30]:
+                if not isinstance(row, dict):
+                    continue
+                svc_table.append(
+                    [
+                        self._pdf_cell(row.get("function", ""), cell_style),
+                        self._pdf_cell(row.get("file", ""), cell_style),
+                        self._pdf_cell("Si" if row.get("auth_in_function") else "No", cell_style),
+                        self._pdf_cell("Si" if row.get("has_try_catch") else "No", cell_style),
+                        self._pdf_cell("Si" if row.get("has_validation") else "No", cell_style),
+                        self._pdf_cell(row.get("status", ""), cell_style),
+                    ]
+                )
+            svc_t = Table(svc_table, colWidths=[68, 110, 28, 38, 32, 42], repeatRows=1)
+            svc_t.setStyle(self._pdf_table_style())
+            story.append(svc_t)
+
+        sa = self.secrets_audit or {}
+        story.append(Spacer(1, 10))
+        story.append(Paragraph("4.0 Revision de secretos y tokens en codigo", styles["Heading2"]))
+        story.append(
+            Paragraph(
+                escape(str(sa.get("status_message") or "Sin auditoria de secretos en esta corrida.")),
+                body_style,
+            )
+        )
+        if sa.get("files_scanned") is not None:
+            story.append(
+                Paragraph(
+                    f"Archivos revisados: {escape(str(sa.get('files_scanned', 0)))} | "
+                    f"Hallazgos: {escape(str(sa.get('findings_count', 0)))}",
+                    body_style,
+                )
+            )
+        secret_rows = sa.get("findings") or []
+        if secret_rows:
+            sec_table: List[List[Any]] = [
+                [
+                    Paragraph("<b>Tipo</b>", cell_style),
+                    Paragraph("<b>Archivo</b>", cell_style),
+                    Paragraph("<b>Linea</b>", cell_style),
+                    Paragraph("<b>Funcion</b>", cell_style),
+                    Paragraph("<b>Valor (enmascarado)</b>", cell_style),
+                ]
+            ]
+            for row in secret_rows[:25]:
+                if not isinstance(row, dict):
+                    continue
+                sec_table.append(
+                    [
+                        self._pdf_cell(row.get("type_label", row.get("type", "")), cell_style),
+                        self._pdf_cell(row.get("file", ""), cell_style),
+                        self._pdf_cell(str(row.get("line", "")), cell_style),
+                        self._pdf_cell(row.get("function_name", ""), cell_style),
+                        self._pdf_cell(row.get("masked_value", "***"), cell_style),
+                    ]
+                )
+            sec_t = Table(sec_table, colWidths=[70, 120, 32, 70, 80], repeatRows=1)
+            sec_t.setStyle(self._pdf_table_style())
+            story.append(sec_t)
+        else:
+            story.append(
+                Paragraph(
+                    "No se reportan JWT, Bearer tokens, API keys ni contraseñas hardcodeadas.",
+                    body_style,
+                )
+            )
 
         story.append(Spacer(1, 10))
         story.append(Paragraph("4.1 Retest diff (antes vs despues)", styles["Heading2"]))

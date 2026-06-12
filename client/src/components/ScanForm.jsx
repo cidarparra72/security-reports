@@ -295,9 +295,9 @@ export function ScanForm({ scan, onSubmit, mode = "code", codeOnly = false }) {
 
         {!isJsonMode && codeOnly && (
           <p className="hint">
-            Solo análisis sobre archivos del repositorio (patrones, Semgrep, Trivy, Grype según checks marcados).
-            Ajusta los lenguajes a la derecha para el SAST por extensión.
-            La ruta debe existir en el mismo equipo donde corre el backend del escáner.
+            Análisis <strong>JavaScript/TypeScript</strong>: patrones por línea, funciones, llamadas HTTP/API sin auth
+            evidente, sinks peligrosos (eval, innerHTML, JWT decode…) y Semgrep (reglas OWASP/XSS/JWT si está instalado).
+            Marca <strong>javascript</strong> y <strong>typescript</strong> a la derecha. La ruta debe existir en el equipo del backend.
           </p>
         )}
 

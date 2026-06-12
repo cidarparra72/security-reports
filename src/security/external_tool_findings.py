@@ -301,10 +301,62 @@ def _load_json_file(path: Path) -> Optional[Any]:
         return None
 
 
+_ESLINT_MAX_FINDINGS = 200
+
+
+def parse_eslint_json(data: Any, project: Path) -> List[Vulnerability]:
+    """Convierte salida `eslint -f json` en hallazgos del informe."""
+    if not isinstance(data, list):
+        return []
+    out: List[Vulnerability] = []
+    for entry in data:
+        if not isinstance(entry, dict):
+            continue
+        raw_path = str(entry.get("filePath") or "")
+        rel = _rel_path(project, raw_path) or raw_path.replace("\\", "/")
+        messages = entry.get("messages")
+        if not isinstance(messages, list):
+            continue
+        for msg in messages:
+            if not isinstance(msg, dict):
+                continue
+            rule_id = str(msg.get("ruleId") or "eslint").strip()
+            if not rule_id:
+                continue
+            try:
+                line = int(msg.get("line") or 0)
+            except (TypeError, ValueError):
+                line = 0
+            text = str(msg.get("message") or rule_id)
+            try:
+                sev_n = int(msg.get("severity") or 1)
+            except (TypeError, ValueError):
+                sev_n = 1
+            sev = "MEDIUM" if sev_n >= 2 else "LOW"
+            out.append(
+                _v(
+                    title=f"[ESLint] {rule_id}",
+                    description=text,
+                    file=rel,
+                    line=line,
+                    snippet=text[:500],
+                    recommendation="Corrige según la regla ESLint del proyecto (.eslintrc / eslint-config).",
+                    severity=sev,
+                    category="Linter (ESLint)",
+                    cwe_id="0",
+                    confidence="high",
+                )
+            )
+            if len(out) >= _ESLINT_MAX_FINDINGS:
+                return out
+    return out
+
+
 def merge_external_scan_tool_reports(
     result: Dict[str, Any],
     project_path: str,
     external_runs: Optional[Dict[str, Any]],
+    artifacts_dir: str | Path | None = None,
 ) -> Dict[str, int]:
     """
     Lee JSON generados por run_selected_external_checks y los fusiona en result['vulnerabilities'].
@@ -314,6 +366,7 @@ def merge_external_scan_tool_reports(
     if not external_runs or not isinstance(external_runs, dict):
         return counts
     project = Path(project_path).resolve()
+    art_dir = Path(artifacts_dir).resolve() if artifacts_dir else project
     batch: List[Vulnerability] = []
 
     def _add(tool: str, vulns: List[Vulnerability]) -> None:
@@ -324,28 +377,35 @@ def merge_external_scan_tool_reports(
     # --- Semgrep ---
     sg = external_runs.get("semgrep")
     if isinstance(sg, dict) and sg.get("status") == "completed" and sg.get("report_file"):
-        data = _load_json_file(project / str(sg["report_file"]))
+        data = _load_json_file(art_dir / str(sg["report_file"]))
         if data is not None:
             _add("semgrep", parse_semgrep_json(data, project))
 
     # --- Trivy ---
     tv = external_runs.get("trivy")
     if isinstance(tv, dict) and tv.get("status") == "completed" and tv.get("report_file"):
-        data = _load_json_file(project / str(tv["report_file"]))
+        data = _load_json_file(art_dir / str(tv["report_file"]))
         if data is not None:
             _add("trivy", parse_trivy_fs_json(data, project))
 
     # --- Grype ---
     gr = external_runs.get("grype")
     if isinstance(gr, dict) and gr.get("status") == "completed" and gr.get("report_file"):
-        data = _load_json_file(project / str(gr["report_file"]))
+        data = _load_json_file(art_dir / str(gr["report_file"]))
         if data is not None:
             _add("grype", parse_grype_json(data, project))
+
+    # --- ESLint ---
+    es = external_runs.get("eslint")
+    if isinstance(es, dict) and es.get("status") == "completed" and es.get("report_file"):
+        data = _load_json_file(art_dir / str(es["report_file"]))
+        if data is not None:
+            _add("eslint", parse_eslint_json(data, project))
 
     # --- Nuclei (archivo NDJSON línea a línea) ---
     nu = external_runs.get("nuclei")
     if isinstance(nu, dict) and nu.get("status") == "completed" and nu.get("report_file"):
-        p = project / str(nu["report_file"])
+        p = art_dir / str(nu["report_file"])
         if p.is_file():
             try:
                 raw = p.read_text(encoding="utf-8", errors="replace")

@@ -6,6 +6,7 @@ Language → file extensions for static scan, and optional suppressions (.api-se
 from __future__ import annotations
 
 import fnmatch
+import re
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Set
 
@@ -44,6 +45,17 @@ _IGNORE_FILENAMES = frozenset(
         "api-security-ignore.yaml",
     }
 )
+
+# Artefactos generados por el propio escáner (Trivy/Grype/Semgrep en la raíz del repo).
+_SCAN_ARTIFACT_RE = re.compile(
+    r"^scan-\d+-(trivy|grype|semgrep|nuclei|eslint|zap-baseline)(?:-upload)?\.json$",
+    re.IGNORECASE,
+)
+
+
+def is_scan_artifact_filename(name: str) -> bool:
+    base = (name or "").strip().replace("\\", "/").split("/")[-1]
+    return bool(_SCAN_ARTIFACT_RE.match(base))
 
 
 def load_suppressions(project_path: Path) -> List[Dict[str, Any]]:

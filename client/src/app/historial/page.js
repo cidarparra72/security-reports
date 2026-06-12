@@ -304,7 +304,7 @@ export default function HistorialPage() {
                       {completed(row) && row.zap_baseline_html ? (
                         <a
                           href={publicApiUrl(
-                            `/scan/${row.id}/project-artifact/${encodeURIComponent(row.zap_baseline_html)}`
+                            `/scan/${row.id}/artifact/${encodeURIComponent(row.zap_baseline_html)}`
                           )}
                           target="_blank"
                           rel="noreferrer"

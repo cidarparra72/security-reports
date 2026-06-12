@@ -5,7 +5,11 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent / "src"))
 
-from security.vuln_filters import filter_vulnerabilities_for_report, is_lan_insecure_http_finding
+from security.vuln_filters import (
+    filter_vulnerabilities_for_report,
+    is_false_positive_credential_finding,
+    is_lan_insecure_http_finding,
+)
 
 
 def test_drops_lan_insecure_http():
@@ -18,6 +22,32 @@ def test_drops_lan_insecure_http():
         "severity": "MEDIUM",
     }
     assert is_lan_insecure_http_finding(v)
+    assert filter_vulnerabilities_for_report([v]) == []
+
+
+def test_drops_example_email_credential():
+    v = {
+        "pattern_id": "HARDCODED_CREDENTIALS",
+        "title": "Hardcoded credentials",
+        "code_snippet": 'message: "Ingresa un correo válido (ej: correo@ejemplo.com)"',
+        "file": "pages/pseForm/pseForm.js",
+        "line": 219,
+        "severity": "CRITICAL",
+    }
+    assert is_false_positive_credential_finding(v)
+    assert filter_vulnerabilities_for_report([v]) == []
+
+
+def test_drops_scan_artifact_trivy_json():
+    v = {
+        "pattern_id": "HARDCODED_SECRET",
+        "title": "Hardcoded secret",
+        "code_snippet": '"pkg:npm/lodash@4.17.21"',
+        "file": "scan-234-trivy.json",
+        "line": 12,
+        "severity": "CRITICAL",
+    }
+    assert is_false_positive_credential_finding(v)
     assert filter_vulnerabilities_for_report([v]) == []
 
 
