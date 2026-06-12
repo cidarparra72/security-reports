@@ -1,6 +1,5 @@
 import Link from "next/link";
 import "./globals.css";
-import { isDastEnabled, isHistorialEnabled } from "../lib/featureFlags";
 
 export const metadata = {
   title: "Security Scanner",
@@ -13,8 +12,8 @@ export default function RootLayout({ children }) {
       <body>
         <nav className="app-nav" aria-label="Navegación principal">
           <Link href="/">Inicio</Link>
-          {isHistorialEnabled() && <Link href="/historial">Historial</Link>}
-          {isDastEnabled() && <Link href="/probe">Probe HTTP</Link>}
+          <Link href="/historial">Historial</Link>
+          <Link href="/probe">Probe HTTP</Link>
         </nav>
         {children}
       </body>

@@ -3,7 +3,6 @@
   "buildCommand": "npm run build",
   "installCommand": "npm install",
   "env": {
-    "NEXT_PUBLIC_SCANNER_FEATURES": "code,historial",
     "NEXT_PROXY_API": "https://security-reports.onrender.com"
   }
 }

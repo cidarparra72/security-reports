@@ -9,11 +9,6 @@ import { ResultsPanel } from "../components/ResultsPanel";
 import { FindingsTable } from "../components/FindingsTable";
 import { ArtifactsPanel } from "../components/ArtifactsPanel";
 import { EndpointCollectionWorkbench } from "../components/EndpointCollectionWorkbench";
-import {
-  isCodeScanEnabled,
-  isDastEnabled,
-  isHistorialEnabled,
-} from "../lib/featureFlags";
 
 export default function HomePage() {
   const [view, setView] = useState("home");
@@ -42,8 +37,8 @@ export default function HomePage() {
               Ejecuta revisiones de código, endpoints y evidencias desde un panel claro, rápido y listo para informes ejecutivos.
             </p>
             <div className="hero-metrics" aria-label="Capacidades principales">
-              {isCodeScanEnabled() && <span><strong>SAST</strong> Código</span>}
-              {isDastEnabled() && <span><strong>DAST</strong> API</span>}
+              <span><strong>SAST</strong> Código</span>
+              <span><strong>DAST</strong> API</span>
               <span><strong>PDF</strong> Reportes</span>
             </div>
           </div>
@@ -53,86 +48,70 @@ export default function HomePage() {
           </div>
         </section>
 
-        <section
-          className={
-            isDastEnabled()
-              ? "home-grid home-grid--featured"
-              : "home-grid home-grid--featured home-grid--code-only"
-          }
-        >
-          {isCodeScanEnabled() && (
-            <article className="panel home-card home-card--primary">
-              <p className="eyebrow">Flujo recomendado</p>
-              <h2>Escanear código del repositorio</h2>
-              <p>
-                Revisión enfocada en el árbol de fuentes con checks configurables, lenguajes y herramientas externas cuando estén disponibles.
-              </p>
+        <section className="home-grid home-grid--featured">
+          <article className="panel home-card home-card--primary">
+            <p className="eyebrow">Flujo recomendado</p>
+            <h2>Escanear código del repositorio</h2>
+            <p>
+              Revisión enfocada en el árbol de fuentes con checks configurables, lenguajes y herramientas externas cuando estén disponibles.
+            </p>
+            <button
+              className="button primary"
+              type="button"
+              onClick={() => {
+                prepareCodeOnlyScanMode();
+                setView("code");
+              }}
+            >
+              Abrir análisis de código
+            </button>
+          </article>
+
+          <article className="panel home-card home-card--secondary">
+            <p className="eyebrow">Herramientas</p>
+            <h2>Otros modos de análisis</h2>
+            <div className="tool-grid">
               <button
-                className="button primary"
+                className="tool-card"
                 type="button"
                 onClick={() => {
-                  prepareCodeOnlyScanMode();
-                  setView("code");
+                  scan.clearForJsonMode();
+                  setView("json");
                 }}
               >
-                Abrir análisis de código
+                <span className="tool-card-kicker">API completa</span>
+                <strong>Endpoints por colección o proyecto</strong>
+                <small>Importa Postman/OpenAPI o infiere rutas desde el código.</small>
               </button>
-            </article>
-          )}
-
-          {(isDastEnabled() || isHistorialEnabled()) && (
-            <article className="panel home-card home-card--secondary">
-              <p className="eyebrow">Herramientas</p>
-              <h2>{isDastEnabled() ? "Otros modos de análisis" : "Reportes"}</h2>
-              <div className="tool-grid">
-                {isDastEnabled() && (
-                  <>
-                    <button
-                      className="tool-card"
-                      type="button"
-                      onClick={() => {
-                        scan.clearForJsonMode();
-                        setView("json");
-                      }}
-                    >
-                      <span className="tool-card-kicker">API completa</span>
-                      <strong>Endpoints por colección o proyecto</strong>
-                      <small>Importa Postman/OpenAPI o infiere rutas desde el código.</small>
-                    </button>
-                    <Link className="tool-card" href="/probe">
-                      <span className="tool-card-kicker">Probe</span>
-                      <strong>HTTP de endpoints</strong>
-                      <small>Prueba respuestas, estados y errores sin armar un scan completo.</small>
-                    </Link>
-                    <button
-                      className="tool-card"
-                      type="button"
-                      onClick={() => {
-                        scan.preparePostmanOneByOneMode();
-                        setView("endpoints");
-                      }}
-                    >
-                      <span className="tool-card-kicker">Precisión</span>
-                      <strong>Colección uno a uno</strong>
-                      <small>Postman armado al estilo Probe: lista, selección y scan por endpoint.</small>
-                    </button>
-                    <Link className="tool-card" href="/scan-api">
-                      <span className="tool-card-kicker">scanApi</span>
-                      <strong>Auditor Postman 360</strong>
-                      <small>Estático + live sobre colección y PDF (reglas scanApi).</small>
-                    </Link>
-                  </>
-                )}
-                {isHistorialEnabled() && (
-                  <Link className="tool-card" href="/historial">
-                    <span className="tool-card-kicker">Reportes</span>
-                    <strong>Historial de corridas</strong>
-                    <small>Revisa resultados anteriores y descarga HTML o PDF.</small>
-                  </Link>
-                )}
-              </div>
-            </article>
-          )}
+              <Link className="tool-card" href="/probe">
+                <span className="tool-card-kicker">Probe</span>
+                <strong>HTTP de endpoints</strong>
+                <small>Prueba respuestas, estados y errores sin armar un scan completo.</small>
+              </Link>
+              <button
+                className="tool-card"
+                type="button"
+                onClick={() => {
+                  scan.preparePostmanOneByOneMode();
+                  setView("endpoints");
+                }}
+              >
+                <span className="tool-card-kicker">Precisión</span>
+                <strong>Colección uno a uno</strong>
+                <small>Postman armado al estilo Probe: lista, selección y scan por endpoint.</small>
+              </button>
+              <Link className="tool-card" href="/scan-api">
+                <span className="tool-card-kicker">scanApi</span>
+                <strong>Auditor Postman 360</strong>
+                <small>Estático + live sobre colección y PDF (reglas scanApi).</small>
+              </Link>
+              <Link className="tool-card" href="/historial">
+                <span className="tool-card-kicker">Reportes</span>
+                <strong>Historial de corridas</strong>
+                <small>Revisa resultados anteriores y descarga HTML o PDF.</small>
+              </Link>
+            </div>
+          </article>
         </section>
       </main>
     );
@@ -267,7 +246,7 @@ export default function HomePage() {
 
       <ScanForm
         scan={scan}
-        onSubmit={(e) => scan.handleScan(e, { codeOnly: !isJsonView })}
+        onSubmit={scan.handleScan}
         mode={isJsonView ? "json" : "code"}
         codeOnly={!isJsonView}
       />
@@ -286,14 +265,13 @@ export default function HomePage() {
           zapBaselineInfo={scan.zapBaselineInfo}
           selectedEndpoints={scan.selectedEndpoints}
           scanInsight={scan.scanInsight}
-          codeOnly={!isJsonView}
         />
         {isJsonView ? (
           <ArtifactsPanel artifacts={artifacts} lastScanId={scan.lastScanId} loading={scan.loading} />
         ) : null}
       </section>
 
-      <FindingsTable rows={scan.rows} codeOnly={!isJsonView} />
+      <FindingsTable rows={scan.rows} />
     </main>
   );
 }
